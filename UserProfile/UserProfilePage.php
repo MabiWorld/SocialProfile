@@ -930,6 +930,7 @@ class UserProfilePage extends Article {
 		$give_gift = SpecialPage::getTitleFor( 'GiveGift' );
 		$send_board_blast = SpecialPage::getTitleFor( 'SendBoardBlast' );
 		$update_profile = SpecialPage::getTitleFor( 'UpdateProfile' );
+		$edit_profile = SpecialPage::getTitleFor( 'EditProfile' );
 		$watchlist = SpecialPage::getTitleFor( 'Watchlist' );
 		$contributions = SpecialPage::getTitleFor( 'Contributions', $user );
 		$send_message = SpecialPage::getTitleFor( 'UserBoard' );
@@ -1000,6 +1001,12 @@ class UserProfilePage extends Article {
 				''
 			) );
 		} elseif ( $wgUser->isLoggedIn() ) {
+			if ( $wgUser->isAllowed( 'editothersprofiles' ) ) {
+				$output .= $wgLang->pipeList( array(
+					'<a href="' . htmlspecialchars( $edit_profile->getFullURL( 'wpUser=' . $user_safe ) ) . '">' . wfMessage( 'user-edit-this' )->escaped() . '</a>',
+					''
+				) );
+			}
 			if ( $relationship == false ) {
 				$output .= $wgLang->pipeList( array(
 					'<a href="' . htmlspecialchars( $add_relationship->getFullURL( 'user=' . $user_safe . '&rel_type=1' ) ) . '" rel="nofollow">' . wfMessage( 'user-add-friend' )->escaped() . '</a>',
