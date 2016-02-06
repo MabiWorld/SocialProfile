@@ -75,7 +75,7 @@ function getWelcome() {
 
 	// Profile top images/points
 	$output = '<div class="mp-welcome-logged-in">
-	<h2>' . wfMessage( 'mp-welcome-logged-in', $wgUser->getName() )->parse() . '</h2>
+	<div class="mp-welcome-header">' . wfMessage( 'mp-welcome-logged-in', $wgUser->getName() )->parse() . '</div>
 	<div class="mp-welcome-image">
 	<a href="' . htmlspecialchars( $wgUser->getUserPage()->getFullURL() ) . '" rel="nofollow">' .
 		$avatar->getAvatarURL() . '</a>';
@@ -118,7 +118,7 @@ function getWelcome() {
 	$output .= getRequests();
 	$output .= '</div>';
 
-	return $output;
+	return str_replace(array("\r", "\n"), array("", ""), $output);
 }
 
 function getRequests() {
@@ -126,16 +126,19 @@ function getRequests() {
 	$requests = getNewMessagesLink() . getRelationshipRequestLink() .
 				getNewGiftLink() . getNewSystemGiftLink();
 
-	$output = '';
+	$output = '<div class="mp-requests">';
 	if ( $requests ) {
-		$output .= '<div class="mp-requests">
-			<h3>' . wfMessage( 'mp-requests-title' )->plain() . '</h3>
-			<div class="mp-requests-message">
-				' . wfMessage( 'mp-requests-message' )->plain() . "
-			</div>
-			$requests
+		$output .= '<h3>' . wfMessage( 'mp-requests-title' )->plain() . '</h3>
+		<div class="mp-requests-message">
+			' . wfMessage( 'mp-requests-message' )->plain() . "
+		</div>
+		$requests";
+	} else {
+		$output .= '<div class="mp-requests-message mp-no-requests-message">
+			' . wfMessage( 'mp-no-requests-message' )->plain() . "
 		</div>";
 	}
+	$output .= "</div>";
 
 	return $output;
 }

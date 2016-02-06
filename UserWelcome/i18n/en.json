@@ -13,6 +13,7 @@
 	"mp-welcome-logged-in": "Hello $1",
 	"mp-requests-title": "Requests",
 	"mp-requests-message": "You have the following requests.",
+	"mp-no-requests-message": "You have no new requests.",
 	"mp-request-new-message": "new message",
 	"mp-request-new-award": "$1 new {{PLURAL:$1|award|awards}}",
 	"mp-request-new-gift": "$1 new {{PLURAL:$1|gift|gifts}}",
