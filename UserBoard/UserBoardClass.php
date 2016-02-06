@@ -205,12 +205,12 @@ class UserBoard {
 		$dbr = wfGetDB( DB_SLAVE );
 		$s = $dbr->selectRow(
 			'user_board',
-			array( 'ub_user_id' ),
+			array( 'ub_user_id', 'ub_user_id_from' ),
 			array( 'ub_id' => $ub_id ),
 			__METHOD__
 		);
 		if ( $s !== false ) {
-			if ( $user_id == $s->ub_user_id ) {
+			if ( $user_id == $s->ub_user_id || $user_id == $s->ub_user_id_from) {
 				return true;
 			}
 		}
@@ -377,7 +377,7 @@ class UserBoard {
 					$board_link = '<a href="' . UserBoard::getUserBoardURL( $message['user_name_from'] ) . '">' .
 						wfMessage( 'userboard_sendmessage', $message['user_name_from'] )->parse() . '</a>';
 				}
-				if ( $wgUser->getName() == $message['user_name'] || $wgUser->isAllowed( 'userboard-delete' ) ) {
+				if ( $wgUser->getName() == $message['user_name'] || $wgUser->getName() == $message['user_name_from'] || $wgUser->isAllowed( 'userboard-delete' ) ) {
 					$delete_link = "<span class=\"user-board-red\">
 							<a href=\"javascript:void(0);\" data-message-id=\"{$message['id']}\">" .
 								wfMessage( 'userboard_delete' )->plain() . '</a>
