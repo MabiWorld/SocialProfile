@@ -63,7 +63,7 @@ class SPUserSecurity {
 		);
 
 		if ( $s ) {
-			return $s->privacy;
+			return $s->ufp_privacy;
 		} else {
 			return 'public';
 		}
@@ -92,7 +92,7 @@ class SPUserSecurity {
 		);
 
 		if ( $s ) {
-			$privacy = $s->privacy;
+			$privacy = $s->ufp_privacy;
 		} else {
 			$privacy = 'public';
 		}
