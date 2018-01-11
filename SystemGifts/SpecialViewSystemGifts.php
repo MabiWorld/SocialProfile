@@ -16,12 +16,23 @@ class ViewSystemGifts extends SpecialPage {
 	}
 
 	/**
+	 * Show this special page on Special:SpecialPages only for registered users
+	 *
+	 * @return bool
+	 */
+	function isListed() {
+		return (bool)$this->getUser()->isLoggedIn();
+	}
+
+	/**
 	 * Show the special page
 	 *
 	 * @param $par Mixed: parameter passed to the page or null
 	 */
 	public function execute( $par ) {
 		global $wgUploadPath;
+
+		$linkRenderer = $this->getLinkRenderer();
 
 		$out = $this->getOutput();
 		$request = $this->getRequest();
@@ -31,7 +42,10 @@ class ViewSystemGifts extends SpecialPage {
 		$this->setHeaders();
 
 		// Add CSS
-		$out->addModuleStyles( 'ext.socialprofile.systemgifts.css' );
+		$out->addModuleStyles( [
+			'ext.socialprofile.systemgifts.css',
+			'ext.socialprofile.special.viewsystemgifts.css'
+		] );
 
 		$output = '';
 		$user_name = $request->getVal( 'user' );
@@ -141,9 +155,9 @@ class ViewSystemGifts extends SpecialPage {
 			$output .= '<div class="page-nav">';
 
 			if ( $page > 1 ) {
-				$output .= Linker::link(
+				$output .= $linkRenderer->makeLink(
 					$page_link,
-					$this->msg( 'ga-previous' )->plain(),
+					$this->msg( 'last' )->plain(),
 					array(),
 					array(
 						'user' => $user_name,
@@ -166,7 +180,7 @@ class ViewSystemGifts extends SpecialPage {
 				if ( $i == $page ) {
 					$output .= ( $i . ' ' );
 				} else {
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$page_link,
 						$i,
 						array(),
@@ -180,9 +194,9 @@ class ViewSystemGifts extends SpecialPage {
 
 			if ( ( $total - ( $per_page * $page ) ) > 0 ) {
 				$output .= $this->msg( 'word-separator' )->plain() .
-					Linker::link(
+					$linkRenderer->makeLink(
 						$page_link,
-						$this->msg( 'ga-next' )->plain(),
+						$this->msg( 'next' )->plain(),
 						array(),
 						array(
 							'user' => $user_name,

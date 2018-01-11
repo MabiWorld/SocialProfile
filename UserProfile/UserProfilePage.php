@@ -1,4 +1,6 @@
 <?php
+use MediaWiki\MediaWikiServices;
+
 /**
  * User profile Wiki Page
  *
@@ -186,7 +188,7 @@ class UserProfilePage extends Article {
 		if ( $total_value != 0 ) {
 			$output .= '<div class="user-section-heading">
 				<div class="user-section-title">' .
-					wfMessage( 'user-stats-title' )->escaped() .
+					wfMessage( 'statistics' )->escaped() .
 				'</div>
 				<div class="user-section-actions">
 					<div class="action-right">
@@ -257,12 +259,10 @@ class UserProfilePage extends Article {
 			$polls = $data;
 		} else {
 			wfDebug( "Got profile polls for user {$this->user_id} from DB\n" );
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				array( 'poll_question', 'page' ),
-				array(
-					'page_title', 'UNIX_TIMESTAMP(poll_date) AS poll_date'
-				),
+				array( 'page_title', 'poll_date' ),
 				/* WHERE */array( 'poll_user_id' => $this->user_id ),
 				__METHOD__,
 				array( 'ORDER BY' => 'poll_id DESC', 'LIMIT' => 3 ),
@@ -271,7 +271,7 @@ class UserProfilePage extends Article {
 			foreach( $res as $row ) {
 				$polls[] = array(
 					'title' => $row->page_title,
-					'timestamp' => $row->poll_date
+					'timestamp' => wfTimestamp( TS_UNIX, $row->poll_date )
 				);
 			}
 			$wgMemc->set( $key, $polls );
@@ -299,15 +299,13 @@ class UserProfilePage extends Article {
 			$quiz = $data;
 		} else {
 			wfDebug( "Got profile quizzes for user {$this->user_id} from DB\n" );
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'quizgame_questions',
-				array(
-					'q_id', 'q_text', 'UNIX_TIMESTAMP(q_date) AS quiz_date'
-				),
+				array( 'q_id', 'q_text', 'q_date' ),
 				array(
 					'q_user_id' => $this->user_id,
-					'q_flag' => 0 // the same as QUIZGAME_FLAG_NONE
+					'q_flag' => 0 // the same as QuizGameHome::$FLAG_NONE
 				),
 				__METHOD__,
 				array(
@@ -319,7 +317,7 @@ class UserProfilePage extends Article {
 				$quiz[] = array(
 					'id' => $row->q_id,
 					'text' => $row->q_text,
-					'timestamp' => $row->quiz_date
+					'timestamp' => wfTimestamp( TS_UNIX, $row->q_date )
 				);
 			}
 			$wgMemc->set( $key, $quiz );
@@ -347,16 +345,13 @@ class UserProfilePage extends Article {
 			$pics = $data;
 		} else {
 			wfDebug( "Got profile picgames for user {$this->user_id} from DB\n" );
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'picturegame_images',
-				array(
-					'id', 'title', 'img1', 'img2',
-					'UNIX_TIMESTAMP(pg_date) AS pic_game_date'
-				),
+				array( 'id', 'title', 'img1', 'img2', 'pg_date' ),
 				array(
 					'userid' => $this->user_id,
-					'flag' => 0 // PICTUREGAME_FLAG_NONE
+					'flag' => 0 // PictureGameHome::$FLAG_NONE
 				),
 				__METHOD__,
 				array(
@@ -370,7 +365,7 @@ class UserProfilePage extends Article {
 					'title' => $row->title,
 					'img1' => $row->img1,
 					'img2' => $row->img2,
-					'timestamp' => $row->pic_game_date
+					'timestamp' => wfTimestamp( TS_UNIX, $row->pg_date )
 				);
 			}
 			$wgMemc->set( $key, $pics );
@@ -1080,7 +1075,7 @@ class UserProfilePage extends Article {
 
 		$output = '<div class="profile-image">';
 		if ( $wgUser->getName() == $this->user_name ) {
-			if ( strpos( $avatar->getAvatarImage(), 'default_' ) != false ) {
+			if ( $avatar->isDefault() ) {
 				$caption = 'upload image';
 			} else {
 				$caption = 'new image';
@@ -1180,7 +1175,8 @@ class UserProfilePage extends Article {
 				// Chop down username that gets displayed
 				$user_name = $wgLang->truncate( $friend['user_name'], 9, '..' );
 
-				$output .= "<a href=\"" . htmlspecialchars( $user->getFullURL() ) . "\" title=\"{$friend['user_name']}\" rel=\"nofollow\">
+				$output .= "<a href=\"" . htmlspecialchars( $user->getFullURL() ) .
+					"\" title=\"" . htmlspecialchars( $friend['user_name'] ) . "\" rel=\"nofollow\">
 					{$avatar->getAvatarURL()}<br />
 					{$user_name}
 				</a>";
@@ -1720,7 +1716,8 @@ class UserProfilePage extends Article {
 			// If there are more than ten fanboxes, display a "View all" link
 			// instead of listing them all on the profile page
 			if ( $fanbox_count > 10 ) {
-				$output .= Linker::link(
+				$linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
+				$output .= $linkRenderer->makeLink(
 					$fanbox_link,
 					wfMessage( 'user-view-all' )->plain(),
 					array(),
@@ -1803,7 +1800,7 @@ class UserProfilePage extends Article {
 				$output .= "<div class=\"fanbox-item\">
 					<div class=\"individual-fanbox\" id=\"individualFanbox" . $fanbox['fantag_id'] . "\">
 						<div class=\"show-message-container-profile\" id=\"show-message-container" . $fanbox['fantag_id'] . "\">
-							<a class=\"perma\" style=\"font-size:8px; color:" . $fanbox['fantag_right_textcolor'] . "\" href=\"" . htmlspecialchars( $fantag_title->getFullURL() ) . "\" title=\"{$fanbox['fantag_title']}\">" . wfMessage( 'fanbox-perma' )->plain() . "</a>
+							<a class=\"perma\" style=\"font-size:8px; color:" . $fanbox['fantag_right_textcolor'] . "\" href=\"" . htmlspecialchars( $fantag_title->getFullURL() ) . "\" title=\"" . htmlspecialchars( $fanbox['fantag_title'] ) . "\">" . wfMessage( 'fanbox-perma' )->plain() . "</a>
 							<table class=\"fanBoxTableProfile\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\">
 								<tr>
 									<td id=\"fanBoxLeftSideOutputProfile\" style=\"color:" . $fanbox['fantag_left_textcolor'] . "; font-size:$leftfontsize\" bgcolor=\"" . $fanbox['fantag_left_bgcolor'] . "\">" . $fantag_leftside . "</td>

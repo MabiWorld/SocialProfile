@@ -55,6 +55,24 @@ class UserGifts {
 
 		$stats = new UserStatsTrack( $this->user_id, $this->user_name );
 		$stats->incStatField( 'gift_sent' );
+
+		if ( class_exists( 'EchoEvent' ) ) {
+			$userFrom = User::newFromId( $this->user_id );
+
+			EchoEvent::create( array(
+				'type' => 'social-gift-send',
+				'agent' => $userFrom,
+				'extra' => array(
+					'target' => $user_id_to,
+					'from' => $this->user_id,
+					'mastergiftid' => $gift_id,
+					'giftid' => $ug_gift_id,
+					'type' => $type,
+					'message' => $message
+				)
+			) );
+		}
+
 		return $ug_gift_id;
 	}
 
@@ -73,7 +91,8 @@ class UserGifts {
 		$user = User::newFromId( $user_id_to );
 		$user->loadFromDatabase();
 
-		if ( $user->isEmailConfirmed() && $user->getIntOption( 'notifygift', 1 ) ) {
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-gift' ) : $user->getIntOption( 'notifygift', 1 );
+		if ( $user->isEmailConfirmed() && $wantsEmail ) {
 			$giftsLink = SpecialPage::getTitleFor( 'ViewGifts' );
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
@@ -134,7 +153,7 @@ class UserGifts {
 	 * @return Boolean: true if the user owns the gift, otherwise false
 	 */
 	public function doesUserOwnGift( $user_id, $ug_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_gift',
 			array( 'ug_user_id_to' ),
@@ -170,7 +189,7 @@ class UserGifts {
 			return '';
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			array( 'user_gift', 'gift' ),
 			array(
@@ -289,7 +308,7 @@ class UserGifts {
 
 		global $wgMemc;
 		$key = wfMemcKey( 'user_gifts', 'new_count', $user_id );
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$newGiftCount = 0;
 		$s = $dbr->selectRow(
 			'user_gift',
@@ -307,7 +326,7 @@ class UserGifts {
 	}
 
 	public function getUserGiftList( $type, $limit = 0, $page = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$params = array();
 
 		if ( $limit > 0 ) {
@@ -325,7 +344,7 @@ class UserGifts {
 			array(
 				'ug_id', 'ug_user_id_from', 'ug_user_name_from', 'ug_gift_id',
 				'ug_date', 'ug_status', 'gift_name', 'gift_description',
-				'gift_given_count', 'UNIX_TIMESTAMP(ug_date) AS unix_time'
+				'gift_given_count'
 			),
 			array( "ug_user_id_to = {$this->user_id}" ),
 			__METHOD__,
@@ -338,14 +357,14 @@ class UserGifts {
 			$requests[] = array(
 				'id' => $row->ug_id,
 				'gift_id' => $row->ug_gift_id,
-				'timestamp' => ( $row->ug_date ),
+				'timestamp' => $row->ug_date,
 				'status' => $row->ug_status,
 				'user_id_from' => $row->ug_user_id_from,
 				'user_name_from' => $row->ug_user_name_from,
 				'gift_name' => $row->gift_name,
 				'gift_description' => $row->gift_description,
 				'gift_given_count' => $row->gift_given_count,
-				'unix_timestamp' => $row->unix_time
+				'unix_timestamp' => wfTimestamp( TS_UNIX, $row->ug_date )
 			);
 		}
 
@@ -353,7 +372,7 @@ class UserGifts {
 	}
 
 	public function getAllGiftList( $limit = 10, $page = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$params = array();
 
 		$params['ORDER BY'] = 'ug_id DESC';
@@ -371,7 +390,7 @@ class UserGifts {
 			array(
 				'ug_id', 'ug_user_id_from', 'ug_user_name_from', 'ug_gift_id',
 				'ug_date', 'ug_status', 'gift_name', 'gift_description',
-				'gift_given_count', 'UNIX_TIMESTAMP(ug_date) AS unix_time'
+				'gift_given_count'
 			),
 			array(),
 			__METHOD__,
@@ -384,14 +403,14 @@ class UserGifts {
 			$requests[] = array(
 				'id' => $row->ug_id,
 				'gift_id' => $row->ug_gift_id,
-				'timestamp' => ( $row->ug_date ),
+				'timestamp' => $row->ug_date,
 				'status' => $row->ug_status,
 				'user_id_from' => $row->ug_user_id_from,
 				'user_name_from' => $row->ug_user_name_from,
 				'gift_name' => $row->gift_name,
 				'gift_description' => $row->gift_description,
 				'gift_given_count' => $row->gift_given_count,
-				'unix_timestamp' => $row->unix_time
+				'unix_timestamp' => wfTimestamp( TS_UNIX, $row->ug_date )
 			);
 		}
 
@@ -420,7 +439,7 @@ class UserGifts {
 	 * @return Integer: amount of gifts the specified user has
 	 */
 	static function getGiftCountByUsername( $userName ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$userId = User::idFromName( $userName );
 
 		$res = $dbr->select(

@@ -37,10 +37,7 @@ class SpecialToggleUserPage extends UnlistedSpecialPage {
 		}
 
 		// Show a message if the database is in read-only mode
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		$dbw = wfGetDB( DB_MASTER );
 		$s = $dbw->selectRow(
@@ -77,8 +74,9 @@ class SpecialToggleUserPage extends UnlistedSpecialPage {
 
 		if ( $user_page_type == 1 && !$user->isBlocked() ) {
 			$user_page = Title::makeTitle( NS_USER, $user->getName() );
-			$article = new Article( $user_page );
-			$user_page_content = $article->getContent();
+			$article = new WikiPage( $user_page );
+			$contentObject = $article->getContent();
+			$user_page_content = ContentHandler::getContentText( $contentObject );
 
 			$user_wiki_title = Title::makeTitle( NS_USER_WIKI, $user->getName() );
 			$user_wiki = new Article( $user_wiki_title );

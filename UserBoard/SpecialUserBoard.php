@@ -28,6 +28,15 @@ class SpecialViewUserBoard extends SpecialPage {
 	}
 
 	/**
+	 * Show this special page on Special:SpecialPages only for registered users
+	 *
+	 * @return bool
+	 */
+	function isListed() {
+		return (bool)$this->getUser()->isLoggedIn();
+	}
+
+	/**
 	 * Show the special page
 	 *
 	 * @param $params Mixed: parameter(s) passed to the page or null
@@ -37,12 +46,13 @@ class SpecialViewUserBoard extends SpecialPage {
 		$request = $this->getRequest();
 		$currentUser = $this->getUser();
 
+		$linkRenderer = $this->getLinkRenderer();
+
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
 
 		// Add CSS & JS
 		$out->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
 			'ext.socialprofile.userboard.css'
 		) );
 		$out->addModules( 'ext.socialprofile.userboard.js' );
@@ -170,9 +180,9 @@ class SpecialViewUserBoard extends SpecialPage {
 		if ( $numofpages > 1 ) {
 			$output .= '<div class="page-nav">';
 			if ( $page > 1 ) {
-				$output .= Linker::link(
+				$output .= $linkRenderer->makeLink(
 					$this->getPageTitle(),
-					$this->msg( 'userboard_prevpage' )->plain(),
+					$this->msg( 'last' )->plain(),
 					array(),
 					array(
 						'user' => $user_name,
@@ -195,7 +205,7 @@ class SpecialViewUserBoard extends SpecialPage {
 				if ( $i == $page ) {
 					$output .= ( $i . ' ' );
 				} else {
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$this->getPageTitle(),
 						$i,
 						array(),
@@ -209,9 +219,9 @@ class SpecialViewUserBoard extends SpecialPage {
 
 			if ( ( $total - ( $per_page * $page ) ) > 0 ) {
 				$output .= $this->msg( 'word-separator' )->plain() .
-					Linker::link(
+					$linkRenderer->makeLink(
 					$this->getPageTitle(),
-					$this->msg( 'userboard_nextpage' )->plain(),
+					$this->msg( 'next' )->plain(),
 					array(),
 					array(
 						'user' => $user_name,
@@ -272,6 +282,9 @@ class SpecialViewUserBoard extends SpecialPage {
 		}
 		$output .= '<div id="user-page-board">';
 
+		// @todo FIXME: This if-else loop *massively* duplicates
+		// UserBoard::displayMessages(). We should refactor that and this into
+		// one sane & sensible method. --ashley, 19 July 2017
 		if ( $ub_messages ) {
 			foreach ( $ub_messages as $ub_message ) {
 				$user = Title::makeTitle( NS_USER, $ub_message['user_name_from'] );
@@ -301,7 +314,7 @@ class SpecialViewUserBoard extends SpecialPage {
 				{
 					$delete_link = "<span class=\"user-board-red\">
 						<a href=\"javascript:void(0);\" data-message-id=\"{$ub_message['id']}\">" .
-							$this->msg( 'userboard_delete' )->plain() . '</a>
+							$this->msg( 'delete' )->plain() . '</a>
 					</span>';
 				}
 
@@ -315,16 +328,17 @@ class SpecialViewUserBoard extends SpecialPage {
 				$ub_message_text = $ub_message['message_text'];
 
 				$userPageURL = htmlspecialchars( $user->getFullURL() );
+				$senderTitle = htmlspecialchars( $ub_message['user_name_from'] );
 				$output .= "<div class=\"user-board-message\">
 					<div class=\"user-board-message-from\">
-							<a href=\"{$userPageURL}\" title=\"{$ub_message['user_name_from']}}\">{$ub_message['user_name_from']} </a> {$ub_message_type_label}
+						<a href=\"{$userPageURL}\" title=\"{$senderTitle}\">{$ub_message['user_name_from']} </a> {$ub_message_type_label}
 					</div>
 					<div class=\"user-board-message-time\">"
 						. $this->msg( 'userboard_posted_ago', $b->getTimeAgo( $ub_message['timestamp'] ) )->parse() .
 					"</div>
 					<div class=\"user-board-message-content\">
 						<div class=\"user-board-message-image\">
-							<a href=\"{$userPageURL}\" title=\"{$ub_message['user_name_from']}\">{$avatar->getAvatarURL()}</a>
+							<a href=\"{$userPageURL}\" title=\"{$senderTitle}\">{$avatar->getAvatarURL()}</a>
 						</div>
 						<div class=\"user-board-message-body\">
 							{$ub_message_text}

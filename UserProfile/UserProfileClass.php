@@ -1,4 +1,6 @@
 <?php
+use MediaWiki\MediaWikiServices;
+
 /**
  * Class to access profile data for a user
  */
@@ -95,7 +97,7 @@ class UserProfile {
 			$profile = $data;
 		} else {
 			wfDebug( "Got user profile info for {$this->user_name} from DB\n" );
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$row = $dbr->selectRow(
 				'user_profile',
 				'*',
@@ -217,7 +219,7 @@ class UserProfile {
 		// Check if the user has a non-default avatar
 		$this->profile_fields_count++;
 		$avatar = new wAvatar( $wgUser->getID(), 'l' );
-		if ( strpos( $avatar->getAvatarImage(), 'default_' ) === false ) {
+		if ( !$avatar->isDefault() ) {
 			$complete_count++;
 		}
 
@@ -227,6 +229,7 @@ class UserProfile {
 	static function getEditProfileNav( $current_nav ) {
 		$lines = explode( "\n", wfMessage( 'update_profile_nav' )->inContentLanguage()->text() );
 		$output = '<div class="profile-tab-bar">';
+		$linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
 
 		foreach ( $lines as $line ) {
 			if ( strpos( $line, '*' ) !== 0 ) {
@@ -243,7 +246,7 @@ class UserProfile {
 				}
 
 				$output .= '<div class="profile-tab' . ( ( $current_nav == $link_text ) ? '-on' : '' ) . '">';
-				$output .= Linker::link( $page, $link_text );
+				$output .= $linkRenderer->makeLink( $page, $link_text );
 				$output .= '</div>';
 			}
 		}

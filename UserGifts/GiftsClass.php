@@ -43,7 +43,7 @@ class Gifts {
 	 * @param $gift_description Mixed: a short description about the gift, as supplied by the user
 	 * @param $gift_access Integer: 0 by default
 	 */
-	public function updateGift( $id, $gift_name, $gift_description, $access = 0 ) {
+	public static function updateGift( $id, $gift_name, $gift_description, $access = 0 ) {
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->update( 'gift',
 			/* SET */array(
@@ -65,7 +65,7 @@ class Gifts {
 		if ( !is_numeric( $id ) ) {
 			return '';
 		}
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			'gift',
 			array(
@@ -104,7 +104,7 @@ class Gifts {
 	static function getGiftList( $limit = 0, $page = 0, $order = 'gift_createdate DESC' ) {
 		global $wgUser;
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$params = array();
 
 		if ( $limit > 0 ) {
@@ -143,7 +143,7 @@ class Gifts {
 
 	static function getManagedGiftList( $limit = 0, $page = 0 ) {
 		global $wgUser;
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$where = ''; // Prevent E_NOTICE
 		$params['ORDER BY'] = 'gift_createdate';
@@ -158,7 +158,7 @@ class Gifts {
 			$where = array( 'gift_creator_user_id' => $wgUser->getID() );
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			'gift',
 			array(
@@ -185,7 +185,7 @@ class Gifts {
 	}
 
 	static function getCustomCreatedGiftCount( $user_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$gift_count = 0;
 		$s = $dbr->selectRow(
 			'gift',
@@ -200,7 +200,7 @@ class Gifts {
 	}
 
 	static function getGiftCount() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$gift_count = 0;
 		$s = $dbr->selectRow(
 			'gift',

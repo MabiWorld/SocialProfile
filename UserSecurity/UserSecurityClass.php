@@ -91,7 +91,7 @@ class SPUserSecurity {
 			__METHOD__
 		);
 
-		if ( $s ) {
+		if ( $s && !empty( $s->ufp_privacy ) ) {
 			$privacy = $s->ufp_privacy;
 		} else {
 			$privacy = 'public';

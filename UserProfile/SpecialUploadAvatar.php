@@ -46,10 +46,7 @@ class SpecialUploadAvatar extends SpecialUpload {
 		$out = $this->getOutput();
 
 		// Add CSS
-		$out->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
-			'ext.socialprofile.userprofile.css'
-		) );
+		$out->addModuleStyles( 'ext.socialprofile.userprofile.css' );
 
 		// Let the parent class do most of the heavy lifting.
 		parent::execute( $params );
@@ -387,7 +384,7 @@ class UploadAvatar extends UploadFromFile {
 		// If this is the user's first custom avatar, update statistics (in
 		// case if we want to give out some points to the user for uploading
 		// their first avatar)
-		if ( strpos( $avatar->getAvatarImage(), 'default_' ) !== false ) {
+		if ( $avatar->isDefault() ) {
 			$stats = new UserStatsTrack( $uid, $user->getName() );
 			$stats->incStatField( 'user_image' );
 		}

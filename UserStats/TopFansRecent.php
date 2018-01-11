@@ -63,7 +63,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 			$params['ORDER BY'] = 'up_points DESC';
 			$params['LIMIT'] = $count;
 
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				"user_points_{$period}",
 				array( 'up_user_id', 'up_user_name', 'up_points' ),
@@ -86,7 +86,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 				// in the top lists.
 				$exists = $u->loadFromId();
 
-				if ( !$u->isBlocked() && $exists && !$u->isAllowed( 'bot' ) ) {
+				if ( !$u->isBlocked() && $exists && !$u->isBot() ) {
 					$user_list[] = array(
 						'user_id' => $row->up_user_id,
 						'user_name' => $row->up_user_name,
@@ -130,6 +130,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 			$output .= '<h1 class="top-title">' .
 				$this->msg( 'top-fans-by-category-nav-header' )->plain() . '</h1>';
 
+			$linkRenderer = $this->getLinkRenderer();
 			$lines = explode( "\n", $message->text() );
 			foreach ( $lines as $line ) {
 				if ( strpos( $line, '*' ) !== 0 ) {
@@ -147,7 +148,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 					}
 
 					$output .= '<p>';
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$by_category_title,
 						$link_text,
 						array(),

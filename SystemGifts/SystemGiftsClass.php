@@ -68,6 +68,7 @@ class SystemGifts {
 				);
 
 				foreach ( $res2 as $row2 ) {
+					// @todo FIXME: this needs refactoring and badly (see T131016 for details)
 					if ( $this->doesUserHaveGift( $row2->stats_user_id, $row->gift_id ) == false ) {
 						$dbw->insert(
 							'user_system_gift',
@@ -84,7 +85,7 @@ class SystemGifts {
 						$sg_key = wfMemcKey( 'user', 'profile', 'system_gifts', "{$row2->stats_user_id}" );
 						$wgMemc->delete( $sg_key );
 
-						// Update counters (bug #27981)
+						// Update counters (https://phabricator.wikimedia.org/T29981)
 						UserSystemGifts::incGiftGivenCount( $row->gift_id );
 
 						$wgOut->addHTML( wfMessage(
@@ -111,7 +112,7 @@ class SystemGifts {
 	 *                          gift, else the gift's ID number
 	 */
 	public function doesUserHaveGift( $user_id, $gift_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_system_gift',
 			array( 'sg_gift_id' ),
@@ -175,7 +176,7 @@ class SystemGifts {
 	}
 
 	public function doesGiftExistForThreshold( $category, $threshold ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$awardCategory = 0;
 		if ( isset( $this->categories[$category] ) ) {
@@ -206,7 +207,7 @@ class SystemGifts {
 	 *                the gift ID, its name, description, category, threshold
 	 */
 	static function getGift( $id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			'system_gift',
 			array(
@@ -260,7 +261,7 @@ class SystemGifts {
 	 *                to) gift ID, creation timestamp, name, description, etc.
 	 */
 	static function getGiftList( $limit = 0, $page = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$limitvalue = 0;
 		if ( $limit > 0 && $page ) {
@@ -304,7 +305,7 @@ class SystemGifts {
 	 * @return Integer: the amount of all system gifts on the database
 	 */
 	static function getGiftCount() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$gift_count = 0;
 		$s = $dbr->selectRow(
 			'system_gift',

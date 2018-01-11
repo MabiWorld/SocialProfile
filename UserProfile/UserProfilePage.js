@@ -1,7 +1,6 @@
 /**
  * JavaScript functions used by UserProfile
  */
-var replaceID;
 var UserProfilePage = {
 	posted: 0,
 	numReplaces: 0,
@@ -15,37 +14,33 @@ var UserProfilePage = {
 			msgType = document.getElementById( 'message_type' ).value;
 		if ( document.getElementById( 'message' ).value && !UserProfilePage.posted ) {
 			UserProfilePage.posted = 1;
-			jQuery.post(
-				mediaWiki.util.wikiScript(), {
-					action: 'ajax',
-					rs: 'wfSendBoardMessage',
-					rsargs: [userTo, encMsg, msgType, 10]
-				},
-				function( data ) {
-					jQuery( '#user-page-board' ).html( data );
-					UserProfilePage.posted = 0;
-					jQuery( '#message' ).text( '' );
-				}
-			);
+			( new mw.Api() ).postWithToken( 'edit', {
+				action: 'socialprofile-send-message',
+				format: 'json',
+				username: userTo,
+				message: encMsg,
+				type: msgType
+			} ).done( function( data ) {
+				jQuery( data.result ).prependTo( '#user-page-board' );
+				UserProfilePage.posted = 0;
+				jQuery( '#message' ).val( '' );
+			} );
 		}
 	},
 
 	deleteMessage: function( id ) {
-		if ( window.confirm( 'Are you sure you want to delete this message?' ) ) {
-			jQuery.post(
-				mediaWiki.util.wikiScript(), {
-					action: 'ajax',
-					rs: 'wfDeleteBoardMessage',
-					rsargs: [id]
-				},
-				function() {
-					//window.location.reload();
-					// 1st parent = span.user-board-red
-					// 2nd parent = div.user-board-message-links
-					// 3rd parent = div.user-board-message = the container of a msg
-					jQuery( '[data-message-id="' + id + '"]' ).parent().parent().parent().hide( 100 );
-				}
-			);
+		if ( window.confirm( mediaWiki.msg( 'user-board-confirm-delete' ) ) ) {
+			( new mw.Api() ).postWithToken( 'edit', {
+				action: 'socialprofile-delete-message',
+				format: 'json',
+				'id': id
+			} ).done( function() {
+				//window.location.reload();
+				// 1st parent = span.user-board-red
+				// 2nd parent = div.user-board-message-links
+				// 3rd parent = div.user-board-message = the container of a msg
+				jQuery( '[data-message-id="' + id + '"]' ).parent().parent().parent().hide( 100 );
+			} );
 		}
 	},
 
@@ -55,7 +50,7 @@ var UserProfilePage = {
 	},
 
 	uploadError: function( message ) {
-		document.getElementById( 'mini-gallery-' + replaceID ).innerHTML = UserProfilePage.oldHtml;
+		document.getElementById( 'mini-gallery-' + UserProfilePage.replaceID ).innerHTML = UserProfilePage.oldHtml;
 		document.getElementById( 'upload-frame-errors' ).innerHTML = message;
 		document.getElementById( 'imageUpload-frame' ).src = 'index.php?title=Special:MiniAjaxUpload&wpThumbWidth=75';
 
@@ -126,7 +121,7 @@ var UserProfilePage = {
 	}
 };
 
-jQuery( document ).ready( function() {
+jQuery( function() {
 	// "Send message" button on (other users') profile pages
 	jQuery( 'div.user-page-message-box-button input[type="button"]' ).on( 'click', function() {
 		UserProfilePage.sendMessage();

@@ -44,7 +44,7 @@ class TopUsersPoints extends SpecialPage {
 
 			$params['ORDER BY'] = 'stats_total_points DESC';
 			$params['LIMIT'] = $count;
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'user_stats',
 				array( 'stats_user_id', 'stats_user_name', 'stats_total_points' ),
@@ -67,7 +67,7 @@ class TopUsersPoints extends SpecialPage {
 				// in the top lists.
 				$exists = $user->loadFromId();
 
-				if ( !$user->isBlocked() && $exists && !$user->isAllowed( 'bot' ) ) {
+				if ( !$user->isBlocked() && $exists && !$user->isBot() ) {
 					$user_list[] = array(
 						'user_id' => $row->stats_user_id,
 						'user_name' => $row->stats_user_name,
@@ -109,6 +109,7 @@ class TopUsersPoints extends SpecialPage {
 			$output .= '<h1 style="margin-top:15px !important;">' .
 				$this->msg( 'top-fans-by-category-nav-header' )->plain() . '</h1>';
 
+			$linkRenderer = $this->getLinkRenderer();
 			$lines = explode( "\n", $byCategoryMessage->text() );
 			foreach ( $lines as $line ) {
 				if ( strpos( $line, '*' ) !== 0 ) {
@@ -126,7 +127,7 @@ class TopUsersPoints extends SpecialPage {
 					}
 
 					$output .= '<p> ';
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$by_category_title,
 						$link_text,
 						array(),

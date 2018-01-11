@@ -40,10 +40,7 @@ class SpecialBoardBlast extends UnlistedSpecialPage {
 		}
 
 		// Is the database locked?
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return false;
-		}
+		$this->checkReadOnly();
 
 		// Blocked through Special:Block? No access for you!
 		if ( $user->isBlocked() ) {
@@ -52,7 +49,6 @@ class SpecialBoardBlast extends UnlistedSpecialPage {
 
 		// Add CSS & JS
 		$out->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
 			'ext.socialprofile.userboard.boardblast.css'
 		) );
 		$out->addModules( 'ext.socialprofile.userboard.boardblast.js' );

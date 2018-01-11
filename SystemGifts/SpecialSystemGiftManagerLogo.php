@@ -45,10 +45,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		}
 
 		// Show a message if the database is in read-only mode
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		// If user is blocked, s/he doesn't need to access this page
 		if ( $user->isBlocked() ) {
@@ -56,7 +53,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		}
 
 		// Add CSS
-		$out->addModuleStyles( 'ext.socialprofile.systemgifts.css' );
+		$out->addModuleStyles( 'ext.socialprofile.special.systemgiftmanagerlogo.css' );
 
 		$this->gift_id = $this->getRequest()->getInt( 'gift_id' );
 		$this->initLogo();
@@ -481,9 +478,9 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 * @access private
 	 */
 	function unsaveUploadedFile() {
-		wfSuppressWarnings();
+		MediaWiki\suppressWarnings();
 		$success = unlink( $this->mUploadTempName );
-		wfRestoreWarnings();
+		MediaWiki\restoreWarnings();
 		if ( !$success ) {
 			throw new FatalError( $this->msg( 'filedeleteerror', $this->mUploadTempName )->escaped() );
 		}
@@ -631,10 +628,6 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 		$ulb = $this->msg( 'uploadbtn' )->plain();
 
-		$titleObj = SpecialPage::getTitleFor( 'Upload' );
-		$action = htmlspecialchars( $titleObj->getLocalURL() );
-
-		$encDestFile = htmlspecialchars( $this->mDestFile );
 		$source = null;
 
 		if ( $wgUseCopyrightUpload ) {

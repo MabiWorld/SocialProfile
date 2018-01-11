@@ -23,13 +23,11 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 	 * @param $section Mixed: parameter passed to the page or null
 	 */
 	public function execute( $par ) {
-		global $wgUpdateProfileInRecentChanges, $wgSupressPageTitle;
+		global $wgUpdateProfileInRecentChanges;
 
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 		$user = $this->getUser();
-
-		$wgSupressPageTitle = true;
 
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
@@ -49,10 +47,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 		}
 
 		// Database operations require write mode
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		// Are we even allowed to do this?
 		if ( !$user->isAllowed( 'editothersprofiles' ) ) {
@@ -61,7 +56,6 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 
 		// Add CSS & JS
 		$out->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
 			'ext.socialprofile.userprofile.css'
 		) );
 		$out->addModules( 'ext.userProfile.updateProfile' );
@@ -169,7 +163,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 	}
 
 	function displayBasicForm( $tar ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_profile',
 			array(
@@ -224,18 +218,18 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 		$this->getOutput()->setPageTitle( $this->msg( 'edit-profile-title' )->plain() );
 		//$form = UserProfile::getEditProfileNav( $this->msg( 'user-profile-section-personal' )->plain() );
 		$form = '<form action="" method="post" enctype="multipart/form-data" name="profile">';
-		$form .= '<div class="profile-info clearfix">';
+		$form .= '<div class="profile-info visualClear">';
 		$form .= '<div class="profile-update">
 			<p class="profile-update-title">' . $this->msg( 'user-profile-personal-info' )->plain() . '</p>
 			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-personal-name' )->plain() . '</p>
 			<p class="profile-update-unit"><input type="text" size="25" name="real_name" id="real_name" value="' . $real_name . '"/></p>
 			<div class="visualClear"></div>
-			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-personal-email' )->plain() . '</p>
+			<p class="profile-update-unit-left">' . $this->msg( 'email' )->plain() . '</p>
 			<p class="profile-update-unit"><input type="text" size="25" name="email" id="email" value="' . $email . '"/>';
 		if ( !$tar->mEmailAuthenticated ) {
 			$confirm = SpecialPage::getTitleFor( 'Confirmemail' );
 			$form .= " <a href=\"{$confirm->getFullURL()}\">" .
-				$this->msg( 'user-profile-personal-confirmemail' )->plain() .
+				$this->msg( 'confirmemail' )->plain() .
 			'</a>';
 		}
 		$form .= '</p>
@@ -258,11 +252,10 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 			<p class="profile-update-unit-left" id="location_state_label">' . $this->msg( 'user-profile-personal-country' )->plain() . '</p>';
 		$form .= '<p class="profile-update-unit">';
 		$form .= '<span id="location_state_form">';
-		$form .= "</span>
-				<script type=\"text/javascript\">
-					displaySection(\"location_state\",\"" . $location_country . "\",\"" . ( isset( $location_state ) ? $location_state : '' ) . "\");
-				</script>";
-		$form .= "<select name=\"location_country\" id=\"location_country\" onchange=\"displaySection('location_state',this.value,'')\"><option></option>";
+		$form .= '</span>';
+		// Hidden helper for UpdateProfile.js since JS cannot directly access PHP variables
+		$form .= '<input type="hidden" id="location_state_current" value="' . ( isset( $location_state ) ? $location_state : '' ) . '" />';
+		$form .= '<select name="location_country" id="location_country"><option></option>';
 
 		foreach ( $countries as $country ) {
 			$form .= "<option value=\"{$country}\"" . ( ( $country == $location_country ) ? ' selected="selected"' : '' ) . ">";
@@ -283,11 +276,10 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 			<p class="profile-update-unit-left" id="hometown_state_label">' . $this->msg( 'user-profile-personal-country' )->plain() . '</p>
 			<p class="profile-update-unit">';
 		$form .= '<span id="hometown_state_form">';
-		$form .= "</span>
-			<script type=\"text/javascript\">
-				displaySection(\"hometown_state\",\"" . $hometown_country . "\",\"" . ( isset( $hometown_state ) ? $hometown_state : '' ) . "\");
-			</script>";
-		$form .= "<select name=\"hometown_country\" id=\"hometown_country\" onchange=\"displaySection('hometown_state',this.value,'')\"><option></option>";
+		$form .= '</span>';
+		// Hidden helper for UpdateProfile.js since JS cannot directly access PHP variables
+		$form .= '<input type="hidden" id="hometown_state_current" value="' . ( isset( $hometown_state ) ? $hometown_state : '' ) . '" />';
+		$form .= '<select name="hometown_country" id="hometown_country"><option></option>';
 
 		foreach ( $countries as $country ) {
 			$form .= "<option value=\"{$country}\"" . ( ( $country == $hometown_country ) ? ' selected="selected"' : '' ) . ">";
@@ -363,7 +355,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 	}
 
 	function displayPersonalForm( $tar ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_profile',
 			array(
@@ -394,7 +386,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 
 		$this->getOutput()->setPageTitle( $this->msg( 'user-profile-section-interests' )->plain() );
 		//$form = UserProfile::getEditProfileNav( $this->msg( 'user-profile-section-interests' )->plain() );
-		$form = '<div class="profile-info clearfix">
+		$form = '<div class="profile-info visualClear">
 			<div class="profile-update">
 			<p class="profile-update-title">' . $this->msg( 'user-profile-interests-entertainment' )->plain() . '</p>
 			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-interests-movies' )->plain() . '</p>
@@ -428,7 +420,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 			</p>
 			<div class="visualClear"></div>
 			</div>
-			<div class="profile-info clearfix">
+			<div class="profile-info visualClear">
 			<p class="profile-update-title">' . $this->msg( 'user-profile-interests-eats' )->plain() . '</p>
 			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-interests-foodsnacks' )->plain() . '</p>
 			<p class="profile-update-unit">
@@ -452,7 +444,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 	 * @return $form Mixed: HTML output
 	 */
 	function displayCustomForm( $tar ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_profile',
 			array(
@@ -474,7 +466,7 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 			$this->msg( 'user-profile-tidbits-title' )->plain() )->parse() );
 		$form = '<h1>' . $this->msg( 'user-profile-tidbits-title' )->plain() . '</h1>';
 		//$form = UserProfile::getEditProfileNav( $this->msg( 'user-profile-section-custom' )->plain() );
-		$form = '<div class="profile-info clearfix">
+		$form = '<div class="profile-info visualClear">
 				<div class="profile-update">
 					<p class="profile-update-title">' . $this->msg( 'user-profile-tidbits-title' )->inContentLanguage()->parse() . '</p>
 					<div id="profile-update-custom1">
@@ -511,4 +503,23 @@ class SpecialEditProfile extends SpecialUpdateProfile {
 
 		return $form;
 	}
+
+	/**
+	 * Return an array of subpages beginning with $search that this special page will accept.
+	 *
+	 * @param string $search Prefix to search for
+	 * @param int $limit Maximum number of results to return (usually 10)
+	 * @param int $offset Number of results to skip (usually 0)
+	 * @return string[] Matching subpages
+	 */
+	public function prefixSearchSubpages( $search, $limit, $offset ) {
+		$user = User::newFromName( $search );
+		if ( !$user ) {
+			// No prefix suggestion for invalid user
+			return [];
+		}
+		// Autocomplete subpage as user list - public to allow caching
+		return UserNamePrefixSearch::search( 'public', $search, $limit, $offset );
+	}
+
 }

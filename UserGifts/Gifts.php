@@ -12,6 +12,7 @@ $wgUserGiftsDirectory = "$IP/extensions/SocialProfile/UserGifts";
 // Special Pages etc.
 $wgAutoloadClasses['Gifts'] = "{$wgUserGiftsDirectory}/GiftsClass.php";
 $wgAutoloadClasses['UserGifts'] = "{$wgUserGiftsDirectory}/UserGiftsClass.php";
+$wgAutoloadClasses['UserGiftsHooks'] = "{$wgUserGiftsDirectory}/UserGiftsHooks.php";
 
 $wgAutoloadClasses['GiveGift'] = "{$wgUserGiftsDirectory}/SpecialGiveGift.php";
 $wgSpecialPages['GiveGift'] = 'GiveGift';
@@ -35,6 +36,7 @@ $wgAutoloadClasses['RemoveGift'] = "{$wgUserGiftsDirectory}/SpecialRemoveGift.ph
 $wgSpecialPages['RemoveGift'] = 'RemoveGift';
 
 $wgMessagesDirs['UserGifts'] = __DIR__ . '/i18n';
+$wgExtensionMessagesFiles['UserGiftsAlias'] = __DIR__ . '/UserGifts.alias.php';
 
 // Register the CSS & JS with ResourceLoader
 $wgResourceModules['ext.socialprofile.usergifts.css'] = array(
@@ -49,6 +51,16 @@ $wgResourceModules['ext.socialprofile.usergifts.js'] = array(
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'SocialProfile/UserGifts',
 );
+
+// Echo (Notifications) stuff
+$wgAutoloadClasses['EchoUserGiftPresentationModel'] = "{$wgUserGiftsDirectory}/EchoUserGiftPresentationModel.php";
+
+$wgHooks['BeforeCreateEchoEvent'][] = 'UserGiftsHooks::onBeforeCreateEchoEvent';
+$wgHooks['EchoGetDefaultNotifiedUsers'][] = 'UserGiftsHooks::onEchoGetDefaultNotifiedUsers';
+$wgHooks['EchoGetBundleRules'][] = 'UserGiftsHooks::onEchoGetBundleRules';
+
+$wgDefaultUserOptions['echo-subscriptions-web-social-gift'] = true;
+$wgDefaultUserOptions['echo-subscriptions-email-social-gift'] = false;
 
 // Credits
 $wgExtensionCredits['specialpage'][] = array(

@@ -136,10 +136,7 @@ class GiftManagerLogo extends UnlistedSpecialPage {
 		if ( !$user->isAllowed( 'upload' ) || $user->isBlocked() ) {
 			throw new ErrorPageError( 'uploadnologin', 'uploadnologintext' );
 		}
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		/** Check if the image directory is writeable, this is a common mistake */
 		if ( !is_writeable( $wgUploadDirectory ) ) {
@@ -495,9 +492,9 @@ class GiftManagerLogo extends UnlistedSpecialPage {
 	 * @access private
 	 */
 	function unsaveUploadedFile() {
-		wfSuppressWarnings();
+		MediaWiki\suppressWarnings();
 		$success = unlink( $this->mUploadTempName );
-		wfRestoreWarnings();
+		MediaWiki\restoreWarnings();
 		if ( !$success ) {
 			throw new FatalError( $this->msg( 'filedeleteerror', $this->mUploadTempName )->escaped() );
 		}

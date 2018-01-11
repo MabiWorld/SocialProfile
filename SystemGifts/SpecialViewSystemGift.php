@@ -30,7 +30,10 @@ class ViewSystemGift extends UnlistedSpecialPage {
 		$this->setHeaders();
 
 		// Add CSS
-		$out->addModuleStyles( 'ext.socialprofile.systemgifts.css' );
+		$out->addModuleStyles( [
+			'ext.socialprofile.systemgifts.css',
+			'ext.socialprofile.special.viewsystemgift.css'
+		] );
 
 		$output = ''; // Prevent E_NOTICE
 
@@ -54,7 +57,7 @@ class ViewSystemGift extends UnlistedSpecialPage {
 				}
 			}
 			// DB stuff
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'user_system_gift',
 				array(

@@ -30,6 +30,15 @@ class SpecialViewRelationships extends SpecialPage {
 	}
 
 	/**
+	 * Show this special page on Special:SpecialPages only for registered users
+	 *
+	 * @return bool
+	 */
+	function isListed() {
+		return (bool)$this->getUser()->isLoggedIn();
+	}
+
+	/**
 	 * Show the special page
 	 *
 	 * @param $params Mixed: parameter(s) passed to the page or null
@@ -39,13 +48,13 @@ class SpecialViewRelationships extends SpecialPage {
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 		$user = $this->getUser();
+		$linkRenderer = $this->getLinkRenderer();
 
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
 
 		// Add CSS
 		$out->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
 			'ext.socialprofile.userrelationship.css'
 		) );
 
@@ -99,7 +108,7 @@ class SpecialViewRelationships extends SpecialPage {
 				$this->msg( 'ur-error-message-no-user' )->plain() .
 			'</div>
 			<div class="relationship-request-buttons">
-				<input type="button" class="site-button" value="' . $this->msg( 'ur-main-page' )->plain() . '" onclick=\'window.location="index.php?title=' . $this->msg( 'mainpage' )->inContentLanguage()->escaped() . '"\' />';
+				<input type="button" class="site-button" value="' . $this->msg( 'mainpage' )->plain() . '" onclick=\'window.location="index.php?title=' . $this->msg( 'mainpage' )->inContentLanguage()->escaped() . '"\' />';
 			if ( $user->isLoggedIn() ) {
 				$output .= '<input type="button" class="site-button" value="' . $this->msg( 'ur-your-profile' )->plain() . '" onclick=\'window.location="' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . '"\' />';
 			}
@@ -198,13 +207,13 @@ class SpecialViewRelationships extends SpecialPage {
 
 				if ( $indivRelationship == false ) {
 					$output .= $lang->pipeList( array(
-						Linker::link(
+						$linkRenderer->makeLink(
 							$addRelationshipLink,
 							$this->msg( 'ur-add-friend' )->plain(),
 							array(),
 							array( 'user' => $relationship['user_name'], 'rel_type' => 1 )
 						),
-						Linker::link(
+						$linkRenderer->makeLink(
 							$addRelationshipLink,
 							$this->msg( 'ur-add-foe' )->plain(),
 							array(),
@@ -213,7 +222,7 @@ class SpecialViewRelationships extends SpecialPage {
 						''
 					) );
 				} elseif ( $user_name == $user->getName() ) {
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$removeRelationshipLink,
 						$rem,
 						array(),
@@ -222,7 +231,7 @@ class SpecialViewRelationships extends SpecialPage {
 					$output .= $this->msg( 'pipe-separator' )->escaped();
 				}
 
-				$output .= Linker::link(
+				$output .= $linkRenderer->makeLink(
 					$giveGiftLink,
 					$this->msg( 'ur-give-gift' )->plain(),
 					array(),
@@ -252,9 +261,9 @@ class SpecialViewRelationships extends SpecialPage {
 		if ( $numofpages > 1 ) {
 			$output .= '<div class="page-nav">';
 			if ( $page > 1 ) {
-				$output .= Linker::link(
+				$output .= $linkRenderer->makeLink(
 					$pageLink,
-					$this->msg( 'ur-previous' )->plain(),
+					$this->msg( 'last' )->plain(),
 					array(),
 					array(
 						'user' => $user_name,
@@ -278,7 +287,7 @@ class SpecialViewRelationships extends SpecialPage {
 				if ( $i == $page ) {
 					$output .= ( $i . ' ' );
 				} else {
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$pageLink,
 						$i,
 						array(),
@@ -293,9 +302,9 @@ class SpecialViewRelationships extends SpecialPage {
 
 			if ( ( $total - ( $per_page * $page ) ) > 0 ) {
 				$output .= $this->msg( 'word-separator' )->plain() .
-					Linker::link(
+					$linkRenderer->makeLink(
 						$pageLink,
-						$this->msg( 'ur-next' )->plain(),
+						$this->msg( 'next' )->plain(),
 						array(),
 						array(
 							'user' => $user_name,

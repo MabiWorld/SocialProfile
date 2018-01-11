@@ -51,6 +51,22 @@ class UserRelationship {
 			$this->sendRelationshipRequestEmail( $userIdTo, $this->user_name, $type );
 		}
 
+		if ( class_exists( 'EchoEvent' ) ) {
+			$userFrom = User::newFromId( $this->user_id );
+
+			EchoEvent::create( array(
+				'type' => 'social-rel-add',
+				'agent' => $userFrom,
+				'title' => $userFrom->getUserPage(),
+				'extra' => array(
+					'target' => $userIdTo,
+					'from' => $this->user_id,
+					'rel_type' => $type,
+					'message' => $message
+				)
+			) );
+		}
+
 		return $requestId;
 	}
 
@@ -67,7 +83,8 @@ class UserRelationship {
 		$user = User::newFromId( $userIdTo );
 		$user->loadFromDatabase();
 
-		if ( $user->getEmail() && $user->getIntOption( 'notifyfriendrequest', 1 ) ) {
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
+		if ( $user->getEmail() && $wantsEmail ) {
 			$requestLink = SpecialPage::getTitleFor( 'ViewRelationshipRequests' );
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
@@ -123,7 +140,8 @@ class UserRelationship {
 		$user = User::newFromId( $userIdTo );
 		$user->loadFromDatabase();
 
-		if ( $user->getEmail() && $user->getIntOption( 'notifyfriendrequest', 1 ) ) {
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
+		if ( $user->getEmail() && $wantsEmail ) {
 			$userLink = Title::makeTitle( NS_USER, $userFrom );
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
@@ -179,7 +197,8 @@ class UserRelationship {
 		$user = User::newFromId( $userIdTo );
 		$user->loadFromDatabase();
 
-		if ( $user->isEmailConfirmed() && $user->getIntOption( 'notifyfriendrequest', 1 ) ) {
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
+		if ( $user->isEmailConfirmed() && $wantsEmail ) {
 			$userLink = Title::makeTitle( NS_USER, $userFrom );
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
@@ -298,6 +317,21 @@ class UserRelationship {
 			$wgMemc->delete( wfMemcKey( 'relationship', 'profile', "{$this->user_id}-{$ur_type}" ) );
 			$wgMemc->delete( wfMemcKey( 'relationship', 'profile', "{$ur_user_id_from}-{$ur_type}" ) );
 
+			if ( class_exists( 'EchoEvent' ) ) {
+				$userFrom = User::newFromId( $this->user_id );
+
+				EchoEvent::create( array(
+					'type' => 'social-rel-accept',
+					'agent' => $userFrom,
+					'title' => $userFrom->getUserPage(),
+					'extra' => array(
+						'target' => $ur_user_id_from,
+						'from' => $this->user_id,
+						'rel_type' => $ur_type
+					)
+				) );
+			}
+
 			// Hooks (for Semantic SocialProfile mostly)
 			if ( $ur_type == 1 ) {
 				Hooks::run( 'NewFriendAccepted', array( $ur_user_name_from, $this->user_name ) );
@@ -397,7 +431,7 @@ class UserRelationship {
 	 * @return bool
 	 */
 	public function verifyRelationshipRequest( $relationshipRequestId ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship_request',
 			array( 'ur_user_id_to' ),
@@ -418,7 +452,7 @@ class UserRelationship {
 	 * @return Mixed: integer or boolean false
 	 */
 	static function getUserRelationshipByID( $user1, $user2 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship',
 			array( 'r_type' ),
@@ -438,7 +472,7 @@ class UserRelationship {
 	 * @return bool
 	 */
 	static function userHasRequestByID( $user1, $user2 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship_request',
 			array( 'ur_type' ),
@@ -464,7 +498,7 @@ class UserRelationship {
 	 *                ID, type, requester, etc.
 	 */
 	public function getRequest( $id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			'user_relationship_request',
 			array(
@@ -502,7 +536,7 @@ class UserRelationship {
 	 * @return Array: array of open relationship requests
 	 */
 	public function getRequestList( $status, $limit = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$options = array();
 
@@ -584,7 +618,7 @@ class UserRelationship {
 		wfDebug( "Got open request count (type={$relType}) for id $userId from DB\n" );
 
 		$key = wfMemcKey( 'user_relationship', 'open_request', $relType, $userId );
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$requestCount = 0;
 
 		$s = $dbr->selectRow(
@@ -657,7 +691,7 @@ class UserRelationship {
 	 * @return Array: array of relationship information
 	 */
 	public function getRelationshipList( $type = 0, $limit = 0, $page = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$where = array();
 		$options = array();
@@ -705,7 +739,7 @@ class UserRelationship {
 	 * @return Array: array of relationship ID numbers
 	 */
 	public function getRelationshipIDs( $type ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$res = $dbr->select(
 			'user_relationship',
@@ -734,7 +768,7 @@ class UserRelationship {
 	 * @return Array: array containing the amount of friends and foes
 	 */
 	static function getRelationshipCountByUsername( $userName ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$userId = User::idFromName( $userName );
 		$res = $dbr->select(
 			'user_relationship_stats',

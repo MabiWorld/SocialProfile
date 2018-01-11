@@ -57,15 +57,19 @@ class wAvatar {
 	/**
 	 * @param Array $extraParams: array of extra parameters to give to the image
 	 * @return String: <img> HTML tag with full path to the avatar image
-	 * */
+	 */
 	function getAvatarURL( $extraParams = array() ) {
 		global $wgUploadPath, $wgUserProfileDisplay;
 
 		$defaultParams = array(
 			'src' => "{$wgUploadPath}/avatars/{$this->getAvatarImage()}",
-			'alt' => 'avatar',
 			'border' => '0',
 		);
+		// Allow callers to add a different alt attribute and only add this
+		// default one if no alt attribute was provided in $extraParams
+		if ( empty( $extraParams['alt'] ) ) {
+			$defaultParams['alt'] = 'avatar';
+		}
 
 		if ( $wgUserProfileDisplay['avatar'] === false ) {
 			$defaultParams['src'] = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Replace by a white pixel
@@ -75,6 +79,15 @@ class wAvatar {
 		$params = array_merge( $extraParams, $defaultParams );
 
 		return Html::element( 'img', $params, '' );
+	}
+
+	/**
+	 * Is the user's avatar a default one?
+	 *
+	 * @return bool True if they have a default avatar, false if they've uploaded their own
+	 */
+	function isDefault() {
+		return strpos( $this->getAvatarImage(), 'default_' ) !== false;
 	}
 
 	/**

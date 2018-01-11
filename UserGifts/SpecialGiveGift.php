@@ -29,6 +29,15 @@ class GiveGift extends SpecialPage {
 	}
 
 	/**
+	 * Show this special page on Special:SpecialPages only for registered users
+	 *
+	 * @return bool
+	 */
+	function isListed() {
+		return (bool)$this->getUser()->isLoggedIn();
+	}
+
+	/**
 	 * Show the special page
 	 *
 	 * @param $par Mixed: parameter passed to the page or null
@@ -145,7 +154,7 @@ class GiveGift extends SpecialPage {
 				$output .= '</div>
 				<div class="visualClear"></div>
 				<div class="g-buttons">
-					<input type="button" class="site-button" value="' . $this->msg( 'g-main-page' )->plain() . '" size="20" onclick="window.location=\'index.php?title=' . $this->msg( 'mainpage' )->inContentLanguage()->escaped() . '\'" />
+					<input type="button" class="site-button" value="' . $this->msg( 'mainpage' )->plain() . '" size="20" onclick="window.location=\'index.php?title=' . $this->msg( 'mainpage' )->inContentLanguage()->escaped() . '\'" />
 					<input type="button" class="site-button" value="' . $this->msg( 'g-your-profile' )->plain() . '" size="20" onclick="window.location=\'' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . '\'" />
 				</div>';
 
@@ -224,7 +233,7 @@ class GiveGift extends SpecialPage {
 				<input type="hidden" name="gift_id" value="' . $giftId . '" />
 				<input type="hidden" name="user_name" value="' . addslashes( $this->user_name_to ) . '" />
 				<input type="button" class="site-button" value="' . $this->msg( 'g-send-gift' )->plain() . '" size="20" onclick="document.gift.submit()" />
-				<input type="button" class="site-button" value="' . $this->msg( 'g-cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
+				<input type="button" class="site-button" value="' . $this->msg( 'cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
 			</div>
 		</form>';
 
@@ -241,6 +250,7 @@ class GiveGift extends SpecialPage {
 		global $wgFriendingEnabled;
 
 		$this->getOutput()->setPageTitle( $this->msg( 'g-give-no-user-title' )->plain() );
+		$this->getOutput()->addModules( 'mediawiki.userSuggest' );
 
 		$output = '<form action="" method="get" enctype="multipart/form-data" name="gift">' .
 			Html::hidden( 'title', $this->getPageTitle() ) .
@@ -281,7 +291,7 @@ class GiveGift extends SpecialPage {
 				$this->msg( 'g-give-enter-friend-title' )->plain() .
 			'</div>
 			<div class="g-give-textbox">
-				<input type="text" width="85" name="user" value="" />
+				<input type="text" width="85" name="user" class="mw-autocomplete-user" value="" />
 				<input class="site-button" type="button" value="' . $this->msg( 'g-give-gift' )->plain() . '" onclick="document.gift.submit()" />
 			</div>
 			</div>
@@ -292,6 +302,8 @@ class GiveGift extends SpecialPage {
 
 	function displayFormAll() {
 		global $wgGiveGiftPerRow, $wgUploadPath;
+
+		$linkRenderer = $this->getLinkRenderer();
 
 		$out = $this->getOutput();
 
@@ -357,7 +369,7 @@ class GiveGift extends SpecialPage {
 			if ( $numofpages > 1 ) {
 				$output .= '<div class="page-nav">';
 				if ( $page > 1 ) {
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$giveGiftLink,
 						$this->msg( 'g-previous' )->plain(),
 						array(),
@@ -378,7 +390,7 @@ class GiveGift extends SpecialPage {
 					if ( $i == $page ) {
 						$output .= ( $i . ' ' );
 					} else {
-						$output .= Linker::link(
+						$output .= $linkRenderer->makeLink(
 							$giveGiftLink,
 							$i,
 							array(),
@@ -392,7 +404,7 @@ class GiveGift extends SpecialPage {
 
 				if ( ( $total - ( $per_page * $page ) ) > 0 ) {
 					$output .= $this->msg( 'word-separator' )->plain() .
-						Linker::link(
+						$linkRenderer->makeLink(
 							$giveGiftLink,
 							$this->msg( 'g-next' )->plain(),
 							array(),
@@ -416,7 +428,7 @@ class GiveGift extends SpecialPage {
 					<input type="hidden" name="gift_id" value="0" />
 					<input type="hidden" name="user_name" value="' . addslashes( $this->user_name_to ) . '" />
 					<input type="button" id="send-gift-button" class="site-button" value="' . $this->msg( 'g-send-gift' )->plain() . '" size="20" />
-					<input type="button" class="site-button" value="' . $this->msg( 'g-cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
+					<input type="button" class="site-button" value="' . $this->msg( 'cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
 				</div>
 			</form>';
 		} else {

@@ -35,7 +35,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 		// Load CSS
 		$out->addModuleStyles( 'ext.socialprofile.userstats.css' );
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$statistic = trim( $request->getVal( 'stat', $par ) );
 		$column = "stats_{$statistic}";
@@ -97,7 +97,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 				// in the top lists.
 				$exists = $u->loadFromId();
 
-				if ( !$u->isBlocked() && $exists && !$u->isAllowed( 'bot' ) ) {
+				if ( !$u->isBlocked() && $exists && !$u->isBot() ) {
 					$user_list[] = array(
 						'user_id' => $row->stats_user_id,
 						'user_name' => $row->stats_user_name,
@@ -138,6 +138,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 			$output .= '<h1 class="top-title">' .
 				$this->msg( 'top-fans-by-category-nav-header' )->plain() . '</h1>';
 
+			$linkRenderer = $this->getLinkRenderer();
 			$lines = explode( "\n", $message->text() );
 			foreach ( $lines as $line ) {
 				if ( strpos( $line, '*' ) !== 0 ) {
@@ -155,7 +156,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 					}
 
 					$output .= '<p>';
-					$output .= Linker::link(
+					$output .= $linkRenderer->makeLink(
 						$this->getPageTitle(),
 						$link_text,
 						array(),

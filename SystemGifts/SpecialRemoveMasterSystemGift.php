@@ -47,10 +47,7 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 		}
 
 		// Show a message if the database is in read-only mode
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		// If user is blocked, s/he doesn't need to access this page
 		if ( $user->isBlocked() ) {
@@ -62,7 +59,10 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 		$out->setRobotPolicy( 'noindex,nofollow' );
 
 		// Add CSS
-		$out->addModuleStyles( 'ext.socialprofile.systemgifts.css' );
+		$out->addModuleStyles( [
+			'ext.socialprofile.systemgifts.css',
+			'ext.socialprofile.special.removemastersystemgift.css'
+		] );
 
 		$this->gift_id = $request->getInt( 'gift_id', $par );
 
@@ -143,7 +143,7 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 			<div class="visualClear"></div>
 			<div class="ga-buttons">
 				<input type="button" class="site-button" value="' . $this->msg( 'ga-remove' )->plain() . '" size="20" onclick="document.form1.submit()" />
-				<input type="button" class="site-button" value="' . $this->msg( 'ga-cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
+				<input type="button" class="site-button" value="' . $this->msg( 'cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
 			</div>
 		</form>';
 

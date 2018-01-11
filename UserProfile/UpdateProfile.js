@@ -43,17 +43,27 @@ function displaySection( id, country, section ) {
 	document.getElementById( id + '_form' ).innerHTML = section_select;
 }
 
-mediaWiki.loader.using( 'jquery.ui.datepicker', function() {
-	jQuery( function( jQuery ) {
-		jQuery( '#birthday' ).datepicker( {
-			changeYear: true,
-			yearRange: '1930:c',
-			dateFormat: jQuery( '#birthday' ).hasClass( 'long-birthday' ) ? 'mm/dd/yy' : 'mm/dd'
-		} );
+jQuery( function( jQuery ) {
+	jQuery( '#birthday' ).datepicker( {
+		changeYear: true,
+		yearRange: '1930:c',
+		dateFormat: jQuery( '#birthday' ).hasClass( 'long-birthday' ) ? 'mm/dd/yy' : 'mm/dd'
 	} );
 } );
 
 $( function() {
+	// US state selector
+	displaySection( 'location_state', $( '#location_country' ).val(), $( '#location_state_current' ).val() );
+	$( '#location_country' ).on( 'change', function () {
+		displaySection( 'location_state', this.value, '' );
+	} );
+
+	displaySection( 'hometown_state', $( '#hometown_country' ).val(), $( '#hometown_state_current' ).val() );
+	$( '#hometown_country' ).on( 'change', function () {
+		displaySection( 'hometown_state', this.value, '' );
+	} );
+
+	// Profile visibility stuff
 	$( '.eye-container' ).on( {
 		'mouseenter': function() {
 			if ( $( this ).css( 'position' ) !== 'absolute' ) {
@@ -95,16 +105,12 @@ $( function() {
 
 		$( this_element ).find( 'div.title' ).html( '...' );
 
-		$.ajax( {
-			type: 'GET',
-			url: mediaWiki.util.wikiScript( 'api' ),
-			data: {
-				action: 'smpuserprivacy',
-				format: 'json',
-				method: 'set',
-				'field_key': field_key,
-				privacy: encodeURIComponent( priv )
-			}
+		( new mw.Api() ).postWithToken( 'edit', {
+			action: 'smpuserprivacy',
+			format: 'json',
+			method: 'set',
+			'field_key': field_key,
+			privacy: encodeURIComponent( priv )
 		} ).done( function( data ) {
 			var offset = $( this_element ).offset();
 			$( this_element ).remove();

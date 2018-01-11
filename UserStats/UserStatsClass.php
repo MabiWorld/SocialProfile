@@ -3,12 +3,12 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 	die();
 }
 /**
- * Four classes for tracking users' social activity
+ * Three classes for tracking users' social activity
  *	UserStatsTrack: main class, used by most other SocialProfile components
  *	UserStats:
  *	UserLevel: used for getting the names of user levels and points needed to
  *			advance to the next level when $wgUserLevels is a properly-defined array.
- *	UserEmailTrack: tracks email invitations (ones sent out by InviteContacts extension)
+ *
  * @file
  * @ingroup Extensions
  */
@@ -105,7 +105,7 @@ class UserStatsTrack {
 	 * Checks if records for the given user are present in user_stats table and if not, adds them
 	 */
 	function initStatsTrack() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_stats',
 			array( 'stats_user_id' ),
@@ -155,7 +155,7 @@ class UserStatsTrack {
 	function incStatField( $field, $val = 1 ) {
 		global $wgUser, $wgMemc, $wgSystemGifts, $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
 
-		if ( !$wgUser->isAllowed( 'bot' ) && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
+		if ( !$wgUser->isBot() && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
 			$dbw = wfGetDB( DB_MASTER );
 			$dbw->update(
 				'user_stats',
@@ -216,7 +216,7 @@ class UserStatsTrack {
 	function decStatField( $field, $val = 1 ) {
 		global $wgUser, $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
 
-		if ( !$wgUser->isAllowed( 'bot' ) && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
+		if ( !$wgUser->isBot() && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
 			$dbw = wfGetDB( DB_MASTER );
 			$dbw->update(
 				'user_stats',
@@ -629,6 +629,7 @@ class UserStatsTrack {
 					}
 				}
 			}
+
 			if ( $wgEnableFacebook ) {
 				$s = $dbw->selectRow(
 					'fb_link_view_opinions',
@@ -666,10 +667,25 @@ class UserStatsTrack {
 						$this->user_id,
 						$user_level->getLevelName()
 					);
+
+					if ( class_exists( 'EchoEvent' ) ) {
+						$userFrom = User::newFromId( $this->user_id );
+
+						EchoEvent::create( array(
+							'type' => 'social-level-up',
+							'agent' => $userFrom,
+							'extra' => array(
+								'notifyAgent' => true,
+								'new-level' => $user_level->getLevelName()
+							)
+						) );
+					}
 				}
 			}
+
 			$this->clearCache();
 		}
+
 		return $stats_data;
 	}
 }
@@ -797,7 +813,7 @@ class UserStats {
 	 * 					amount of points the user has
 	 */
 	static function getTopFansList( $limit = 10 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$res = $dbr->select(
 			'user_stats',
@@ -837,7 +853,7 @@ class UserStats {
 			$pointsTable = 'user_points_weekly';
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			$pointsTable,
 			array( 'up_user_id', 'up_user_name', 'up_points' ),
@@ -864,7 +880,7 @@ class UserStats {
 			// in the top lists.
 			$exists = $user->loadFromId();
 
-			if ( !$user->isBlocked() && $exists && !$user->isAllowed( 'bot' )  ) {
+			if ( !$user->isBlocked() && $exists && !$user->isBot()  ) {
 				$list[] = array(
 					'user_id' => $row->up_user_id,
 					'user_name' => $row->up_user_name,
@@ -903,7 +919,7 @@ class UserStats {
 			$sort = 'DESC';
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			array( 'user_stats', 'user_relationship' ),
 			array( 'stats_user_id', 'stats_user_name', 'stats_total_points' ),
@@ -991,57 +1007,5 @@ class UserLevel {
 
 	public function getLevelMinimum() {
 		return $this->levels[$this->level_name];
-	}
-}
-
-/**
- * Class for tracking email invitations
- * Used by InviteContacts extension
- */
-class UserEmailTrack {
-
-	/**
-	 * Constructor
-	 * @private
-	 * @param $user_id Integer: ID number of the user that we want to track stats for
-	 * @param $user_name Mixed: user's name; if not supplied, then the user ID will be used to get the user name from DB.
-	 */
-	/* private */ function __construct( $user_id, $user_name ) {
-		$this->user_id = $user_id;
-		if ( !$user_name ) {
-			$user = User::newFromId( $this->user_id );
-			$user->loadFromDatabase();
-			$user_name = $user->getName();
-		}
-		$this->user_name = $user_name;
-	}
-
-	/**
-	 * @param $type Integer: one of the following:
-	 * 						1 = Invite - Email Contacts sucker
-	 * 						2 = Invite - CVS Contacts importer
-	 * 						3 = Invite - Manually Address enter
-	 * 						4 = Invite to Read - Manually Address enter
-	 * 						5 = Invite to Edit - Manually Address enter
-	 * 						6 = Invite to Rate - Manually Address enter
-	 * @param $count
-	 * @param $page_title
-	 */
-	public function track_email( $type, $count, $page_title = '' ) {
-		if ( $this->user_id > 0 ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$dbw->insert(
-				'user_email_track',
-				array(
-					'ue_user_id' => $this->user_id,
-					'ue_user_name' => $this->user_name,
-					'ue_type' => $type,
-					'ue_count' => $count,
-					'ue_page_title' => $page_title,
-					'ue_date' => date( 'Y-m-d H:i:s' ),
-				),
-				__METHOD__
-			);
-		}
 	}
 }

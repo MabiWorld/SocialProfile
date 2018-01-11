@@ -52,7 +52,26 @@ class UserSystemGifts {
 		if ( $email && !empty( $sg_gift_id ) ) {
 			$this->sendGiftNotificationEmail( $this->user_id, $gift_id );
 		}
+
+		if ( class_exists( 'EchoEvent' ) ) {
+			$userFrom = User::newFromId( $this->user_id );
+
+			$giftObj = SystemGifts::getGift( $gift_id );
+			EchoEvent::create( array(
+				'type' => 'social-award-rec',
+				'agent' => $userFrom,
+				'extra' => array(
+					'notifyAgent' => true,
+					'target' => $this->user_id,
+					'mastergiftid' => $gift_id,
+					'giftid' => $sg_gift_id,
+					'giftname' => $giftObj['gift_name']
+				)
+			) );
+		}
+
 		$wgMemc->delete( wfMemcKey( 'user', 'profile', 'system_gifts', $this->user_id ) );
+
 		return $sg_gift_id;
 	}
 
@@ -69,7 +88,9 @@ class UserSystemGifts {
 		$gift = SystemGifts::getGift( $gift_id );
 		$user = User::newFromId( $user_id_to );
 		$user->loadFromDatabase();
-		if ( $user->isEmailConfirmed() && $user->getIntOption( 'notifygift', 1 ) ) {
+
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-award' ) : $user->getIntOption( 'notifygift', 1 );
+		if ( $user->isEmailConfirmed() && $wantsEmail ) {
 			$gifts_link = SpecialPage::getTitleFor( 'ViewSystemGifts' );
 			$update_profile_link = SpecialPage::getTitleFor( 'UpdateProfile' );
 			$subject = wfMessage( 'system_gift_received_subject',
@@ -108,7 +129,7 @@ class UserSystemGifts {
 	 * @return Boolean: true if the user has the gift, otherwise false
 	 */
 	public function doesUserHaveGift( $user_id, $gift_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_system_gift',
 			array( 'sg_status' ),
@@ -151,7 +172,7 @@ class UserSystemGifts {
 	 *					otherwise false
 	 */
 	public function doesUserOwnGift( $user_id, $sg_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_system_gift',
 			array( 'sg_user_id' ),
@@ -190,7 +211,7 @@ class UserSystemGifts {
 	 * @return Array: array containing information about the system gift
 	 */
 	static function getUserGift( $id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			array( 'user_system_gift', 'system_gift' ),
 			array(
@@ -309,7 +330,7 @@ class UserSystemGifts {
 
 		global $wgMemc;
 		$key = wfMemcKey( 'system_gifts', 'new_count', $user_id );
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$new_gift_count = 0;
 		$s = $dbr->selectRow(
 			'user_system_gift',
@@ -336,7 +357,7 @@ class UserSystemGifts {
 	 * @return Array: array of system gift information
 	 */
 	public function getUserGiftList( $type, $limit = 0, $page = 0 ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$limitvalue = 0;
 		if ( $limit > 0 && $page ) {
@@ -348,7 +369,7 @@ class UserSystemGifts {
 			array(
 				'sg_id', 'sg_user_id', 'sg_user_name', 'sg_gift_id', 'sg_date',
 				'sg_status', 'gift_name', 'gift_description',
-				'gift_given_count', 'UNIX_TIMESTAMP(sg_date) AS unix_time'
+				'gift_given_count'
 			),
 			array( "sg_user_id = {$this->user_id}" ),
 			__METHOD__,
@@ -365,14 +386,14 @@ class UserSystemGifts {
 			$requests[] = array(
 				'id' => $row->sg_id,
 				'gift_id' => $row->sg_gift_id,
-				'timestamp' => ( $row->sg_date ),
+				'timestamp' => $row->sg_date,
 				'status' => $row->sg_status,
 				'user_id' => $row->sg_user_id,
 				'user_name' => $row->sg_user_name,
 				'gift_name' => $row->gift_name,
 				'gift_description' => $row->gift_description,
 				'gift_given_count' => $row->gift_given_count,
-				'unix_timestamp' => $row->unix_time
+				'unix_timestamp' => wfTimestamp( TS_UNIX, $row->sg_date )
 			);
 		}
 		return $requests;
@@ -402,7 +423,7 @@ class UserSystemGifts {
 	 * @return Integer: gift count for the specified user
 	 */
 	static function getGiftCountByUsername( $user_name ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$user_id = User::idFromName( $user_name );
 		$res = $dbr->select(
 			'user_system_gift',

@@ -51,13 +51,11 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 	 * @param $section Mixed: parameter passed to the page or null
 	 */
 	public function execute( $section ) {
-		global $wgUpdateProfileInRecentChanges, $wgUserProfileThresholds, $wgSupressPageTitle, $wgAutoConfirmCount, $wgEmailConfirmToEdit;
+		global $wgUpdateProfileInRecentChanges, $wgUserProfileThresholds, $wgAutoConfirmCount, $wgEmailConfirmToEdit;
 
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 		$user = $this->getUser();
-
-		$wgSupressPageTitle = true;
 
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
@@ -76,10 +74,7 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 		}
 
 		// Database operations require write mode
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		/**
 		 * Create thresholds based on user stats
@@ -115,8 +110,6 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 
 			// Boo, go away!
 			if ( $can_create == false ) {
-				global $wgSupressPageTitle;
-				$wgSupressPageTitle = false;
 				$out->setPageTitle( $this->msg( 'user-profile-create-threshold-title' )->text() );
 				$thresholdMessages = array();
 				foreach ( $thresholdReasons as $requiredAmount => $reason ) {
@@ -465,7 +458,7 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 	 * @param $user Object: User
 	 */
 	function displayBasicForm( $user ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow( 'user_profile',
 			array(
 				'up_location_city', 'up_location_state', 'up_location_country',
@@ -528,11 +521,11 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-personal-name' )->plain() . '</p>
 			<p class="profile-update-unit"><input type="text" size="25" name="real_name" id="real_name" value="' . $real_name . '"/></p>
 			<div class="visualClear">' . $this->renderEye( 'up_real_name' ) . '</div>
-			<p class="profile-update-unit-left">' . $this->msg( 'user-profile-personal-email' )->plain() . '</p>
+			<p class="profile-update-unit-left">' . $this->msg( 'email' )->plain() . '</p>
 			<p class="profile-update-unit"><input type="text" size="25" name="email" id="email" value="' . $email . '"/>';
 		if ( !$user->mEmailAuthenticated ) {
 			$confirm = SpecialPage::getTitleFor( 'Confirmemail' );
-			$form .= " <a href=\"{$confirm->getFullURL()}\">" . $this->msg( 'user-profile-personal-confirmemail' )->plain() . '</a>';
+			$form .= " <a href=\"{$confirm->getFullURL()}\">" . $this->msg( 'confirmemail' )->plain() . '</a>';
 		}
 		$form .= '</p>
 			<div class="visualClear">' . $this->renderEye( 'up_email' ) . '</div>';
@@ -553,12 +546,11 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 			<div class="visualClear">' . $this->renderEye( 'up_location_city' ) . '</div>
 			<p class="profile-update-unit-left" id="location_state_label">' . $this->msg( 'user-profile-personal-country' )->plain() . '</p>';
 		$form .= '<p class="profile-update-unit">';
+		// Hidden helper for UpdateProfile.js since JS cannot directly access PHP variables
+		$form .= '<input type="hidden" id="location_state_current" value="' . ( isset( $location_state ) ? $location_state : '' ) . '" />';
 		$form .= '<span id="location_state_form">';
-		$form .= "</span>
-				<script type=\"text/javascript\">
-					displaySection(\"location_state\",\"" . $location_country . "\",\"" . ( isset( $location_state ) ? $location_state : '' ) . "\");
-				</script>";
-		$form .= "<select name=\"location_country\" id=\"location_country\" onchange=\"displaySection('location_state',this.value,'')\"><option></option>";
+		$form .= '</span>';
+		$form .= '<select name="location_country" id="location_country"><option></option>';
 
 		foreach ( $countries as $country ) {
 			$form .= "<option value=\"{$country}\"" . ( ( $country == $location_country ) ? ' selected="selected"' : '' ) . ">";
@@ -579,11 +571,10 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 			<p class="profile-update-unit-left" id="hometown_state_label">' . $this->msg( 'user-profile-personal-country' )->plain() . '</p>
 			<p class="profile-update-unit">';
 		$form .= '<span id="hometown_state_form">';
-		$form .= "</span>
-			<script type=\"text/javascript\">
-				displaySection(\"hometown_state\",\"" . $hometown_country . "\",\"" . ( isset( $hometown_state ) ? $hometown_state : '' ) . "\");
-			</script>";
-		$form .= "<select name=\"hometown_country\" id=\"hometown_country\" onchange=\"displaySection('hometown_state',this.value,'')\"><option></option>";
+		$form .= '</span>';
+		// Hidden helper for UpdateProfile.js since JS cannot directly access PHP variables
+		$form .= '<input type="hidden" id="hometown_state_current" value="' . ( isset( $hometown_state ) ? $hometown_state : '' ) . '" />';
+		$form .= '<select name="hometown_country" id="hometown_country"><option></option>';
 
 		foreach ( $countries as $country ) {
 			$form .= "<option value=\"{$country}\"" . ( ( $country == $hometown_country ) ? ' selected="selected"' : '' ) . ">";
@@ -670,7 +661,7 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 	 * @param $user Object: User
 	 */
 	function displayPersonalForm( $user ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_profile',
 			array(
@@ -766,7 +757,7 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 	function displayPreferencesForm() {
 		$user = $this->getUser();
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_profile',
 			array( 'up_birthday' ),
@@ -777,14 +768,19 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 		$showYOB = isset( $s, $s->up_birthday ) ? false : true;
 
 		// @todo If the checkboxes are in front of the option, this would look more like Special:Preferences
-		$this->getOutput()->setPageTitle( $this->msg( 'user-profile-section-preferences' )->plain() );
+		$this->getOutput()->setPageTitle( $this->msg( 'preferences' )->plain() );
 
-		$form = UserProfile::getEditProfileNav( $this->msg( 'user-profile-section-preferences' )->plain() );
+		$form = UserProfile::getEditProfileNav( $this->msg( 'preferences' )->plain() );
 		$form .= '<form action="" method="post" enctype="multipart/form-data" name="profile">';
 		$form .= '<div class="profile-info clearfix">
 			<div class="profile-update">
-				<p class="profile-update-title">' . $this->msg( 'user-profile-preferences-emails' )->plain() . '</p>
-				<p class="profile-update-row">'
+				<p class="profile-update-title">' . $this->msg( 'user-profile-preferences-emails' )->plain() . '</p>';
+		if ( class_exists( 'EchoEvent' ) ) {
+			$form .= '<p class="profile-update-row">' .
+				$this->msg( 'user-profile-preferences-emails-manage' )->parse() .
+				'</p>';
+		} else {
+			$form .= '<p class="profile-update-row">'
 					. $this->msg( 'user-profile-preferences-emails-personalmessage' )->plain() .
 					' <input type="checkbox" size="25" name="notify_message" id="notify_message" value="1"' . ( ( $user->getIntOption( 'notifymessage', 1 ) == 1 ) ? 'checked' : '' ) . '/>
 				</p>
@@ -801,6 +797,7 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 					. $this->msg( 'user-profile-preferences-emails-level' )->plain() .
 					' <input type="checkbox" size="25" name="notify_honorifics" id="notify_honorifics" value="1"' . ( ( $user->getIntOption( 'notifyhonorifics', 1 ) == 1 ) ? 'checked' : '' ) . '/>
 				</p>';
+		}
 
 		$form .= '<p class="profile-update-title">' .
 			$this->msg( 'user-profile-preferences-miscellaneous' )->plain() .

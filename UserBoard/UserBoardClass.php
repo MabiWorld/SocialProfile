@@ -60,6 +60,21 @@ class UserBoard {
 		$stats = new UserStatsTrack( $user_id_from, $user_name_from );
 		$stats->incStatField( 'user_board_sent' );
 
+		if ( class_exists( 'EchoEvent' ) ) {
+			$userFrom = User::newFromId( $user_id_from );
+
+			EchoEvent::create( array(
+				'type' => 'social-msg-send',
+				'agent' => $userFrom,
+				'extra' => array(
+					'target' => $user_id_to,
+					'from' => $user_id_from,
+					'type' => $message_type,
+					'message' => $message
+				)
+			) );
+		}
+
 		return $dbw->insertId();
 	}
 
@@ -74,7 +89,8 @@ class UserBoard {
 		$user->loadFromId();
 
 		// Send email if user's email is confirmed and s/he's opted in to recieving social notifications
-		if ( $user->isEmailConfirmed() && $user->getIntOption( 'notifymessage', 1 ) ) {
+		$wantsEmail = class_exists( 'EchoEvent' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifymessage', 1 );
+		if ( $user->isEmailConfirmed() && $wantsEmail ) {
 			$board_link = SpecialPage::getTitleFor( 'UserBoard' );
 			$update_profile_link = SpecialPage::getTitleFor( 'UpdateProfile' );
 			$subject = wfMessage( 'message_received_subject', $user_from )->parse();
@@ -202,7 +218,7 @@ class UserBoard {
 	 * @return Boolean: true if user owns the message, otherwise false
 	 */
 	public function doesUserOwnMessage( $user_id, $ub_id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_board',
 			array( 'ub_user_id', 'ub_user_id_from' ),
@@ -265,7 +281,7 @@ class UserBoard {
 	 */
 	public function getUserBoardMessages( $user_id, $user_id_2 = 0, $limit = 0, $page = 0 ) {
 		global $wgUser, $wgOut, $wgTitle;
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		if ( $limit > 0 ) {
 			$limitvalue = 0;
@@ -292,7 +308,7 @@ class UserBoard {
 		}
 
 		$sql = "SELECT ub_id, ub_user_id_from, ub_user_name_from, ub_user_id, ub_user_name,
-			ub_message,UNIX_TIMESTAMP(ub_date) AS unix_time,ub_type
+			ub_message, ub_date, ub_type
 			FROM {$dbr->tableName( 'user_board' )}
 			WHERE {$user_sql}
 			ORDER BY ub_id DESC
@@ -308,7 +324,7 @@ class UserBoard {
 
 			$messages[] = array(
 				'id' => $row->ub_id,
-				'timestamp' => ( $row->unix_time ),
+				'timestamp' => wfTimestamp( TS_UNIX, $row->ub_date ),
 				'user_id_from' => $row->ub_user_id_from,
 				'user_name_from' => $row->ub_user_name_from,
 				'user_id' => $row->ub_user_id,
@@ -333,7 +349,7 @@ class UserBoard {
 	public function getUserBoardToBoardCount( $user_id, $user_id_2 ) {
 		global $wgUser;
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$user_sql = " ( (ub_user_id={$user_id} AND ub_user_id_from={$user_id_2}) OR
 					(ub_user_id={$user_id_2} AND ub_user_id_from={$user_id}) )";
@@ -380,7 +396,7 @@ class UserBoard {
 				if ( $wgUser->getName() == $message['user_name'] || $wgUser->getName() == $message['user_name_from'] || $wgUser->isAllowed( 'userboard-delete' ) ) {
 					$delete_link = "<span class=\"user-board-red\">
 							<a href=\"javascript:void(0);\" data-message-id=\"{$message['id']}\">" .
-								wfMessage( 'userboard_delete' )->plain() . '</a>
+								wfMessage( 'delete' )->plain() . '</a>
 						</span>';
 				}
 				if ( $message['type'] == 1 ) {
@@ -391,16 +407,17 @@ class UserBoard {
 				# $message_text = preg_replace_callback( "/(<a[^>]*>)(.*?)(<\/a>)/i", 'cut_link_text', $message['message_text'] );
 
 				$sender = htmlspecialchars( $user->getFullURL() );
+				$senderTitle = htmlspecialchars( $message['user_name_from'] );
 				$output .= "<div class=\"user-board-message\">
 					<div class=\"user-board-message-from\">
-					<a href=\"{$sender}\" title=\"{$message['user_name_from']}\">{$message['user_name_from']}</a> {$message_type_label}
+					<a href=\"{$sender}\" title=\"{$senderTitle}\">{$message['user_name_from']}</a> {$message_type_label}
 					</div>
 					<div class=\"user-board-message-time\">" .
 						wfMessage( 'userboard_posted_ago', $this->getTimeAgo( $message['timestamp'] ) )->parse() .
 					"</div>
 					<div class=\"user-board-message-content\">
 						<div class=\"user-board-message-image\">
-							<a href=\"{$sender}\" title=\"{$message['user_name_from']}\">{$avatar->getAvatarURL()}</a>
+							<a href=\"{$sender}\" title=\"{$senderTitle}\">{$avatar->getAvatarURL()}</a>
 						</div>
 						<div class=\"user-board-message-body\">
 							{$message_text}

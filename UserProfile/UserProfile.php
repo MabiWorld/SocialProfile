@@ -3,6 +3,9 @@
 define( 'NS_USER_PROFILE', 202 );
 define( 'NS_USER_WIKI', 200 );
 
+// Show user avatars in diffs?
+$wgUserProfileAvatarsInDiffs = false;
+
 /**
  * If you want to require users to have a certain number of certain things, like
  * five edits or three friends or two comments or whatever (is supported by
@@ -77,6 +80,8 @@ $wgResourceModules['ext.socialprofile.userprofile.css'] = array(
 
 $wgResourceModules['ext.socialprofile.userprofile.js'] = array(
 	'scripts' => 'UserProfilePage.js',
+	'messages' => array( 'user-board-confirm-delete' ),
+	'dependencies' => array( 'mediawiki.api', 'mediawiki.util' ),
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'SocialProfile/UserProfile',
 );
@@ -84,7 +89,15 @@ $wgResourceModules['ext.socialprofile.userprofile.js'] = array(
 // Modules for Special:EditProfile/Special:UpdateProfile
 $wgResourceModules['ext.userProfile.updateProfile'] = array(
 	'scripts' => 'UpdateProfile.js',
-	'dependencies' => 'mediawiki.util',
+	'dependencies' => array( 'mediawiki.api', 'mediawiki.util', 'jquery.ui.datepicker' ),
+	'localBasePath' => __DIR__,
+	'remoteExtPath' => 'SocialProfile/UserProfile',
+	'position' => 'top'
+);
+
+// CSS for user avatars in page diffs
+$wgResourceModules['ext.socialprofile.userprofile.diff'] = array(
+	'styles' => 'AvatarsInDiffs.css',
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'SocialProfile/UserProfile',
 	'position' => 'top'
@@ -102,61 +115,9 @@ $wgLogNames['avatar']            = 'avatarlogpage';
 $wgLogHeaders['avatar']          = 'avatarlogpagetext';
 $wgLogActions['avatar/avatar'] = 'avatarlogentry';
 
-$wgHooks['ArticleFromTitle'][] = 'wfUserProfileFromTitle';
-
-/**
- * Called by ArticleFromTitle hook
- * Calls UserProfilePage instead of standard article
- *
- * @param &$title Title object
- * @param &$article Article object
- * @return true
- */
-function wfUserProfileFromTitle( &$title, &$article ) {
-	global $wgRequest, $wgOut, $wgHooks, $wgUserPageChoice;
-
-	if ( strpos( $title->getText(), '/' ) === false &&
-		( NS_USER == $title->getNamespace() || NS_USER_PROFILE == $title->getNamespace() )
-	) {
-		$show_user_page = false;
-		if ( $wgUserPageChoice ) {
-			$profile = new UserProfile( $title->getText() );
-			$profile_data = $profile->getProfile();
-
-			// If they want regular page, ignore this hook
-			if ( isset( $profile_data['user_id'] ) && $profile_data['user_id'] && $profile_data['user_page_type'] == 0 ) {
-				$show_user_page = true;
-			}
-		}
-
-		if ( !$show_user_page ) {
-			// Prevents editing of userpage
-			if ( $wgRequest->getVal( 'action' ) == 'edit' ) {
-				$wgOut->redirect( $title->getFullURL() );
-			}
-		} else {
-			$wgOut->enableClientCache( false );
-			$wgHooks['ParserLimitReport'][] = 'wfUserProfileMarkUncacheable';
-		}
-
-		$wgOut->addModuleStyles( array(
-			'ext.socialprofile.clearfix',
-			'ext.socialprofile.userprofile.css'
-		) );
-
-		$article = new UserProfilePage( $title );
-	}
-	return true;
-}
-
-/**
- * Mark page as uncacheable
- *
- * @param $parser Parser object
- * @param &$limitReport String: unused
- * @return true
- */
-function wfUserProfileMarkUncacheable( $parser, &$limitReport ) {
-	$parser->disableCache();
-	return true;
-}
+$wgHooks['ArticleFromTitle'][] = 'UserProfileHooks::onArticleFromTitle';
+$wgHooks['OutputPageBodyAttributes'][] = 'UserProfileHooks::onOutputPageBodyAttributes';
+$wgHooks['DifferenceEngineShowDiff'][] = 'UserProfileHooks::onDifferenceEngineShowDiff';
+$wgHooks['DifferenceEngineShowDiffPage'][] = 'UserProfileHooks::onDifferenceEngineShowDiffPage';
+$wgHooks['DifferenceEngineOldHeader'][] = 'UserProfileHooks::onDifferenceEngineOldHeader';
+$wgHooks['DifferenceEngineNewHeader'][] = 'UserProfileHooks::onDifferenceEngineNewHeader';

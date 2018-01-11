@@ -52,7 +52,7 @@ class UpdateEditCounts extends UnlistedSpecialPage {
 			$user = User::newFromId( $row->rev_user );
 			$user->loadFromId();
 
-			if ( !$user->isAllowed( 'bot' ) ) {
+			if ( !$user->isBot() ) {
 				$editCount = $row->the_count;
 			} else {
 				$editCount = 0;
@@ -112,10 +112,7 @@ class UpdateEditCounts extends UnlistedSpecialPage {
 
 		// And obviously the database needs to be writable before we start
 		// running INSERT/UPDATE queries against it...
-		if ( wfReadOnly() ) {
-			$out->readOnlyPage();
-			return;
-		}
+		$this->checkReadOnly();
 
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
