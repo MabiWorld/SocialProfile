@@ -6,7 +6,7 @@
 if ( !defined( 'MEDIAWIKI' ) ) {
 	die(
 		'This is the setup file for the SocialProfile extension to MediaWiki.' .
-		'Please see http://www.mediawiki.org/wiki/Extension:SocialProfile for' .
+		'Please see https://www.mediawiki.org/wiki/Extension:SocialProfile for' .
 		' more information about this extension.'
 	);
 }
@@ -27,106 +27,42 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 $wgMessagesDirs['SocialProfile'] = __DIR__ . '/i18n';
 $wgExtensionMessagesFiles['SocialProfileAlias'] = __DIR__ . '/SocialProfile.alias.php';
 
-$wgMessagesDirs['SocialProfileUserBoard'] = __DIR__ . '/UserBoard/i18n';
 $wgMessagesDirs['SocialProfileUserProfile'] = __DIR__ . '/UserProfile/i18n';
-$wgMessagesDirs['SocialProfileUserRelationship'] = __DIR__ . '/UserRelationship/i18n';
-$wgMessagesDirs['SocialProfileUserStats'] = __DIR__ . '/UserStats/i18n';
 
 $wgExtensionMessagesFiles['SocialProfileNamespaces'] = __DIR__ . '/SocialProfile.namespaces.php';
-$wgExtensionMessagesFiles['AvatarMagic'] = __DIR__ . '/UserProfile/Avatar.i18n.magic.php';
+$wgExtensionMessagesFiles['AvatarMagic'] = __DIR__ . '/UserProfile/includes/avatar/Avatar.i18n.magic.php';
 
 // Classes to be autoloaded
-$wgAutoloadClasses['GenerateTopUsersReport'] = __DIR__ . '/UserStats/GenerateTopUsersReport.php';
-$wgAutoloadClasses['EchoUserBoardMessagePresentationModel'] = __DIR__ . '/UserBoard/EchoUserBoardMessagePresentationModel.php';
-$wgAutoloadClasses['EchoUserRelationshipPresentationModel'] = __DIR__ . '/UserRelationship/EchoUserRelationshipPresentationModel.php';
-$wgAutoloadClasses['EchoUserLevelAdvancePresentationModel'] = __DIR__ . '/UserStats/EchoUserLevelAdvancePresentationModel.php';
-$wgAutoloadClasses['SpecialAddRelationship'] = __DIR__ . '/UserRelationship/SpecialAddRelationship.php';
-$wgAutoloadClasses['SpecialBoardBlast'] = __DIR__ . '/UserBoard/SpecialSendBoardBlast.php';
-$wgAutoloadClasses['SpecialEditProfile'] = __DIR__ . '/UserProfile/SpecialEditProfile.php';
-$wgAutoloadClasses['SpecialPopulateUserProfiles'] = __DIR__ . '/UserProfile/SpecialPopulateExistingUsersProfiles.php';
-$wgAutoloadClasses['SpecialRemoveRelationship'] = __DIR__ . '/UserRelationship/SpecialRemoveRelationship.php';
-$wgAutoloadClasses['SpecialToggleUserPage'] = __DIR__ . '/UserProfile/SpecialToggleUserPageType.php';
-$wgAutoloadClasses['SpecialUpdateProfile'] = __DIR__ . '/UserProfile/SpecialUpdateProfile.php';
-$wgAutoloadClasses['SpecialUploadAvatar'] = __DIR__ . '/UserProfile/SpecialUploadAvatar.php';
-$wgAutoloadClasses['UploadAvatar'] = __DIR__ . '/UserProfile/SpecialUploadAvatar.php';
-$wgAutoloadClasses['SpecialViewRelationshipRequests'] = __DIR__ . '/UserRelationship/SpecialViewRelationshipRequests.php';
-$wgAutoloadClasses['SpecialViewRelationships'] = __DIR__ . '/UserRelationship/SpecialViewRelationships.php';
-$wgAutoloadClasses['SpecialViewUserBoard'] = __DIR__ . '/UserBoard/SpecialUserBoard.php';
-$wgAutoloadClasses['RemoveAvatar'] = __DIR__ . '/UserProfile/SpecialRemoveAvatar.php';
-$wgAutoloadClasses['UpdateEditCounts'] = __DIR__ . '/UserStats/SpecialUpdateEditCounts.php';
-$wgAutoloadClasses['UserBoard'] = __DIR__ . '/UserBoard/UserBoardClass.php';
-$wgAutoloadClasses['UserBoardHooks'] = __DIR__ . '/UserBoard/UserBoardHooks.php';
-$wgAutoloadClasses['UserProfile'] = __DIR__ . '/UserProfile/UserProfileClass.php';
-$wgAutoloadClasses['UserProfileHooks'] = __DIR__ . '/UserProfile/UserProfileHooks.php';
-$wgAutoloadClasses['UserProfilePage'] = __DIR__ . '/UserProfile/UserProfilePage.php';
-$wgAutoloadClasses['UserRelationship'] = __DIR__ . '/UserRelationship/UserRelationshipClass.php';
-$wgAutoloadClasses['UserRelationshipHooks'] = __DIR__ . '/UserRelationship/UserRelationshipHooks.php';
-$wgAutoloadClasses['UserStatsHooks'] = __DIR__ . '/UserStats/UserStatsHooks.php';
-$wgAutoloadClasses['UserLevel'] = __DIR__ . '/UserStats/UserStatsClass.php';
-$wgAutoloadClasses['UserStats'] = __DIR__ . '/UserStats/UserStatsClass.php';
-$wgAutoloadClasses['UserStatsTrack'] = __DIR__ . '/UserStats/UserStatsClass.php';
-$wgAutoloadClasses['UserSystemMessage'] = __DIR__ . '/UserSystemMessages/UserSystemMessagesClass.php';
-$wgAutoloadClasses['TopFansByStat'] = __DIR__ . '/UserStats/TopFansByStat.php';
-$wgAutoloadClasses['TopFansRecent'] = __DIR__ . '/UserStats/TopFansRecent.php';
-$wgAutoloadClasses['TopUsersPoints'] = __DIR__ . '/UserStats/TopUsers.php';
-$wgAutoloadClasses['wAvatar'] = __DIR__ . '/UserProfile/AvatarClass.php';
-$wgAutoloadClasses['AvatarParserFunction'] = __DIR__ . '/UserProfile/AvatarParserFunction.php';
-$wgAutoloadClasses['SPUserSecurity'] = __DIR__ . '/UserSecurity/UserSecurityClass.php';
+$wgAutoloadClasses['SpecialEditProfile'] = __DIR__ . '/UserProfile/includes/specials/SpecialEditProfile.php';
+$wgAutoloadClasses['SpecialPopulateUserProfiles'] = __DIR__ . '/UserProfile/includes/specials/SpecialPopulateExistingUsersProfiles.php';
+$wgAutoloadClasses['SpecialToggleUserPage'] = __DIR__ . '/UserProfile/includes/specials/SpecialToggleUserPageType.php';
+$wgAutoloadClasses['SpecialUpdateProfile'] = __DIR__ . '/UserProfile/includes/specials/SpecialUpdateProfile.php';
+$wgAutoloadClasses['SpecialUploadAvatar'] = __DIR__ . '/UserProfile/includes/specials/SpecialUploadAvatar.php';
+$wgAutoloadClasses['UploadAvatar'] = __DIR__ . '/UserProfile/includes/avatar/UploadAvatar.php';
+$wgAutoloadClasses['RemoveAvatar'] = __DIR__ . '/UserProfile/includes/specials/SpecialRemoveAvatar.php';
+$wgAutoloadClasses['UserProfile'] = __DIR__ . '/UserProfile/includes/UserProfile.php';
+$wgAutoloadClasses['UserProfileHooks'] = __DIR__ . '/UserProfile/includes/UserProfileHooks.php';
+$wgAutoloadClasses['UserProfilePage'] = __DIR__ . '/UserProfile/includes/UserProfilePage.php';
+$wgAutoloadClasses['wAvatar'] = __DIR__ . '/UserProfile/includes/avatar/Avatar.php';
+$wgAutoloadClasses['AvatarParserFunction'] = __DIR__ . '/UserProfile/includes/parser/AvatarParserFunction.php';
+$wgAutoloadClasses['SPUserSecurity'] = __DIR__ . '/UserProfile/includes/SPUserSecurity.php';
+$wgAutoloadClasses['RandomUsersWithAvatars'] = __DIR__ . '/UserProfile/includes/parser/RandomUsersWithAvatars.php';
+$wgAutoloadClasses['NewUsersList'] = __DIR__ . '/UserProfile/includes/parser/NewUsersList.php';
 
 // API modules
-$wgAutoloadClasses['ApiUserProfilePrivacy'] = __DIR__ . '/UserProfile/ApiUserProfilePrivacy.php';
+$wgAutoloadClasses['ApiUserProfilePrivacy'] = __DIR__ . '/UserProfile/includes/api/ApiUserProfilePrivacy.php';
 $wgAPIModules['smpuserprivacy'] = 'ApiUserProfilePrivacy';
-
-$wgAutoloadClasses['ApiDeleteUserBoardMessage'] = __DIR__ . '/UserBoard/ApiDeleteUserBoardMessage.php';
-$wgAPIModules['socialprofile-delete-message'] = 'ApiDeleteUserBoardMessage';
-
-$wgAutoloadClasses['ApiSendUserBoardMessage'] = __DIR__ . '/UserBoard/ApiSendUserBoardMessage.php';
-$wgAPIModules['socialprofile-send-message'] = 'ApiSendUserBoardMessage';
-
-$wgAutoloadClasses['ApiRelationshipResponse'] = __DIR__ . '/UserRelationship/ApiRelationshipResponse.php';
-$wgAPIModules['socialprofile-request-response'] = 'ApiRelationshipResponse';
-
-// Echo (Notifications) stuff
-// UserBoard
-$wgHooks['BeforeCreateEchoEvent'][] = 'UserBoardHooks::onBeforeCreateEchoEvent';
-$wgHooks['EchoGetDefaultNotifiedUsers'][] = 'UserBoardHooks::onEchoGetDefaultNotifiedUsers';
-$wgHooks['EchoGetBundleRules'][] = 'UserBoardHooks::onEchoGetBundleRules';
-
-$wgDefaultUserOptions['echo-subscriptions-web-social-msg'] = true;
-$wgDefaultUserOptions['echo-subscriptions-email-social-msg'] = false;
-
-// UserRelationship
-$wgHooks['BeforeCreateEchoEvent'][] = 'UserRelationshipHooks::onBeforeCreateEchoEvent';
-$wgHooks['EchoGetDefaultNotifiedUsers'][] = 'UserRelationshipHooks::onEchoGetDefaultNotifiedUsers';
 
 $wgDefaultUserOptions['echo-subscriptions-web-social-rel'] = true;
 $wgDefaultUserOptions['echo-subscriptions-email-social-rel'] = false;
 
-// UserStats
-$wgHooks['BeforeCreateEchoEvent'][] = 'UserStatsHooks::onBeforeCreateEchoEvent';
-$wgHooks['EchoGetBundleRules'][] = 'UserStatsHooks::onEchoGetBundleRules';
-
-$wgDefaultUserOptions['echo-subscriptions-web-social-level-up'] = true;
-$wgDefaultUserOptions['echo-subscriptions-email-social-level-up'] = false;
-
 // New special pages
-$wgSpecialPages['AddRelationship'] = 'SpecialAddRelationship';
 $wgSpecialPages['EditProfile'] = 'SpecialEditProfile';
-$wgSpecialPages['GenerateTopUsersReport'] = 'GenerateTopUsersReport';
 $wgSpecialPages['PopulateUserProfiles'] = 'SpecialPopulateUserProfiles';
 $wgSpecialPages['RemoveAvatar'] = 'RemoveAvatar';
-$wgSpecialPages['RemoveRelationship'] = 'SpecialRemoveRelationship';
-$wgSpecialPages['SendBoardBlast'] = 'SpecialBoardBlast';
-$wgSpecialPages['TopFansByStatistic'] = 'TopFansByStat';
-$wgSpecialPages['TopUsers'] = 'TopUsersPoints';
-$wgSpecialPages['TopUsersRecent'] = 'TopFansRecent';
 $wgSpecialPages['ToggleUserPage'] = 'SpecialToggleUserPage';
-$wgSpecialPages['UpdateEditCounts'] = 'UpdateEditCounts';
 $wgSpecialPages['UpdateProfile'] = 'SpecialUpdateProfile';
 $wgSpecialPages['UploadAvatar'] = 'SpecialUploadAvatar';
-$wgSpecialPages['UserBoard'] = 'SpecialViewUserBoard';
-$wgSpecialPages['ViewRelationshipRequests'] = 'SpecialViewRelationshipRequests';
-$wgSpecialPages['ViewRelationships'] = 'SpecialViewRelationships';
 
 // What to display on social profile pages by default?
 $wgUserProfileDisplay['board'] = true;
@@ -146,114 +82,28 @@ $wgFriendingEnabled = true;
 $wgAvatarKey = $wgDBname;
 
 // Extension credits that show up on Special:Version
-$wgExtensionCredits['other'][] = array(
+$wgExtensionCredits['other'][] = [
 	'path' => __FILE__,
 	'name' => 'SocialProfile',
-	'author' => array( 'Aaron Wright', 'David Pean', 'Jack Phoenix' ),
+	'author' => [ 'Aaron Wright', 'David Pean', 'Jack Phoenix' ],
 	'version' => '1.13',
 	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
 	'descriptionmsg' => 'socialprofile-desc',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'TopUsers',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'Adds a special page for viewing the list of users with the most points.',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'UploadAvatar',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for uploading Avatars',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'RemoveAvatar',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for removing users\' avatars',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'PopulateExistingUsersProfiles',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for initializing social profiles for existing wikis',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'ToggleUserPage',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for updating a user\'s userpage preference',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'UpdateProfile',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page to allow users to update their social profile',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'SendBoardBlast',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page to allow users to send a mass board message by selecting from a list of their friends and foes',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'UserBoard',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'Display User Board messages for a user',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'AddRelationship',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for adding friends/foe requests for existing users in the wiki',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'RemoveRelationship',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for removing existing friends/foes for the current logged in user',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'ViewRelationshipRequests',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for viewing open relationship requests for the current logged in user',
-);
-$wgExtensionCredits['specialpage'][] = array(
-	'path' => __FILE__,
-	'name' => 'ViewRelationships',
-	'author' => 'David Pean',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A special page for viewing all relationships by type',
-);
-$wgExtensionCredits['parserhook'][] = array(
-	'path' => __FILE__,
-	'name' => 'Avatar',
-	'author' => 'Adam Carter',
-	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
-	'description' => 'A parser function to get the avatar of a given user',
-);
+];
 
 // Hooked functions
 $wgAutoloadClasses['SocialProfileHooks'] = __DIR__ . '/SocialProfileHooks.php';
 
 // Loader files
-require_once( "$IP/extensions/SocialProfile/UserProfile/UserProfile.php" ); // Profile page configuration loader file
-require_once( "$IP/extensions/SocialProfile/UserGifts/Gifts.php" ); // UserGifts (user-to-user gifting functionality) loader file
-require_once( "$IP/extensions/SocialProfile/SystemGifts/SystemGifts.php" ); // SystemGifts (awards functionality) loader file
-require_once( "$IP/extensions/SocialProfile/UserActivity/UserActivity.php" ); // UserActivity - recent social changes
+require_once __DIR__ . '/UserProfile/UserProfile.php'; // Profile page configuration loader file
+wfLoadExtensions( [
+	'SocialProfile/SystemGifts', // SystemGifts (awards functionality)
+	'SocialProfile/UserActivity', // UserActivity - recent social changes
+	'SocialProfile/UserBoard',
+	'SocialProfile/UserRelationship',
+	'SocialProfile/UserStats',
+	'SocialProfile/UserGifts',
+] );
 
 $wgHooks['BeforePageDisplay'][] = 'SocialProfileHooks::onBeforePageDisplay';
 $wgHooks['CanonicalNamespaces'][] = 'SocialProfileHooks::onCanonicalNamespaces';
@@ -267,107 +117,47 @@ $wgHooks['RenameUserComplete'][] = 'SocialProfileHooks::onRenameUserComplete';
 // their own loader file
 
 // General
-$wgResourceModules['ext.socialprofile.clearfix'] = array(
+$wgResourceModules['ext.socialprofile.clearfix'] = [
 	'styles' => 'clearfix.css',
-	'position' => 'top',
 	'localBasePath' => __DIR__ . '/shared',
 	'remoteExtPath' => 'SocialProfile/shared',
-);
+];
 
-$wgResourceModules['ext.socialprofile.responsive'] = array(
+$wgResourceModules['ext.socialprofile.responsive'] = [
 	'styles' => 'responsive.less',
-	'position' => 'top',
 	'localBasePath' => __DIR__ . '/shared',
 	'remoteExtPath' => 'SocialProfile/shared',
-);
+];
 
 // General/shared JS modules -- not (necessarily) directly used by SocialProfile,
 // but rather by other social tools which depend on SP
 // @see https://phabricator.wikimedia.org/T100025
-$wgResourceModules['ext.socialprofile.flash'] = array(
+$wgResourceModules['ext.socialprofile.flash'] = [
 	'scripts' => 'flash.js',
-	'position' => 'bottom',
 	'localBasePath' => __DIR__ . '/shared',
 	'remoteExtPath' => 'SocialProfile/shared',
-);
+];
 
-$wgResourceModules['ext.socialprofile.LightBox'] = array(
+$wgResourceModules['ext.socialprofile.LightBox'] = [
 	'scripts' => 'LightBox.js',
-	'position' => 'bottom',
 	'localBasePath' => __DIR__ . '/shared',
 	'remoteExtPath' => 'SocialProfile/shared',
-);
-
-// UserBoard
-$wgResourceModules['ext.socialprofile.userboard.js'] = array(
-	'scripts' => 'UserBoard.js',
-	'dependencies' => array( 'mediawiki.api' ),
-	'messages' => array( 'userboard_confirmdelete' ),
-	'localBasePath' => __DIR__ . '/UserBoard',
-	'remoteExtPath' => 'SocialProfile/UserBoard',
-);
-
-$wgResourceModules['ext.socialprofile.userboard.css'] = array(
-	'styles' => 'UserBoard.css',
-	'localBasePath' => __DIR__ . '/UserBoard',
-	'remoteExtPath' => 'SocialProfile/UserBoard',
-	'position' => 'top' // just in case
-);
-
-$wgResourceModules['ext.socialprofile.userboard.boardblast.css'] = array(
-	'styles' => 'BoardBlast.css',
-	'localBasePath' => __DIR__ . '/UserBoard',
-	'remoteExtPath' => 'SocialProfile/UserBoard',
-	'position' => 'top' // just in case
-);
-
-$wgResourceModules['ext.socialprofile.userboard.boardblast.js'] = array(
-	'scripts' => 'BoardBlast.js',
-	'messages' => array(
-		'boardblast-js-sending', 'boardblast-js-error-missing-message',
-		'boardblast-js-error-missing-user'
-	),
-	'localBasePath' => __DIR__ . '/UserBoard',
-	'remoteExtPath' => 'SocialProfile/UserBoard',
-);
-
-// UserRelationship
-$wgResourceModules['ext.socialprofile.userrelationship.css'] = array(
-	'styles' => 'UserRelationship.css',
-	'localBasePath' => __DIR__ . '/UserRelationship',
-	'remoteExtPath' => 'SocialProfile/UserRelationship',
-	'position' => 'top' // just in case
-);
-
-$wgResourceModules['ext.socialprofile.userrelationship.js'] = array(
-	'scripts' => 'UserRelationship.js',
-	'dependencies' => 'mediawiki.util',
-	'localBasePath' => __DIR__ . '/UserRelationship',
-	'remoteExtPath' => 'SocialProfile/UserRelationship',
-);
-
-// UserStats
-$wgResourceModules['ext.socialprofile.userstats.css'] = array(
-	'styles' => 'TopList.css',
-	'localBasePath' => __DIR__ . '/UserStats',
-	'remoteExtPath' => 'SocialProfile/UserStats',
-	'position' => 'top' // just in case
-);
+];
 
 // End ResourceLoader stuff
 
-if( !defined( 'NS_USER_WIKI' ) ) {
+if ( !defined( 'NS_USER_WIKI' ) ) {
 	define( 'NS_USER_WIKI', 200 );
 }
 
-if( !defined( 'NS_USER_WIKI_TALK' ) ) {
+if ( !defined( 'NS_USER_WIKI_TALK' ) ) {
 	define( 'NS_USER_WIKI_TALK', 201 );
 }
 
-if( !defined( 'NS_USER_PROFILE' ) ) {
+if ( !defined( 'NS_USER_PROFILE' ) ) {
 	define( 'NS_USER_PROFILE', 202 );
 }
 
-if( !defined( 'NS_USER_PROFILE_TALK' ) ) {
+if ( !defined( 'NS_USER_PROFILE_TALK' ) ) {
 	define( 'NS_USER_PROFILE_TALK', 203 );
 }

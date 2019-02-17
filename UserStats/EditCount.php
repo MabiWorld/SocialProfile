@@ -19,16 +19,21 @@ $wgHooks['ArticleUndelete'][] = 'restoreDeletedEdits';
 /**
  * Updates user's points after they've made an edit in a namespace that is
  * listed in the $wgNamespacesForEditPoints array.
+ *
+ * @param WikiPage $wikiPage
+ * @param Revision $revision
+ * @param int $baseRevId
+ * @return bool true
  */
-function incEditCount( $article, $revision, $baseRevId ) {
+function incEditCount( WikiPage $wikiPage, $revision, $baseRevId ) {
 	global $wgUser, $wgNamespacesForEditPoints;
 
 	// only keep tally for allowable namespaces
 	if (
 		!is_array( $wgNamespacesForEditPoints ) ||
-		in_array( $article->getTitle()->getNamespace(), $wgNamespacesForEditPoints )
+		in_array( $wikiPage->getTitle()->getNamespace(), $wgNamespacesForEditPoints )
 	) {
-		$stats = new UserStatsTrack( $wgUser->getID(), $wgUser->getName() );
+		$stats = new UserStatsTrack( $wgUser->getId(), $wgUser->getName() );
 		$stats->incStatField( 'edit' );
 	}
 
@@ -38,6 +43,11 @@ function incEditCount( $article, $revision, $baseRevId ) {
 /**
  * Updates user's points after a page in a namespace that is listed in the
  * $wgNamespacesForEditPoints array that they've edited has been deleted.
+ *
+ * @param WikiPage $article
+ * @param User $user
+ * @param string $reason
+ * @return bool true
  */
 function removeDeletedEdits( &$article, &$user, &$reason ) {
 	global $wgNamespacesForEditPoints;
@@ -50,10 +60,10 @@ function removeDeletedEdits( &$article, &$user, &$reason ) {
 		$dbr = wfGetDB( DB_MASTER );
 		$res = $dbr->select(
 			'revision',
-			array( 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ),
-			array( 'rev_page' => $article->getID(), 'rev_user <> 0' ),
+			[ 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ],
+			[ 'rev_page' => $article->getID(), 'rev_user <> 0' ],
 			__METHOD__,
-			array( 'GROUP BY' => 'rev_user_text' )
+			[ 'GROUP BY' => 'rev_user_text' ]
 		);
 		foreach ( $res as $row ) {
 			$stats = new UserStatsTrack( $row->rev_user, $row->rev_user_text );
@@ -68,6 +78,10 @@ function removeDeletedEdits( &$article, &$user, &$reason ) {
  * Updates user's points after a page in a namespace that is listed in the
  * $wgNamespacesForEditPoints array that they've edited has been restored after
  * it was originally deleted.
+ *
+ * @param Title $title
+ * @param bool $new
+ * @return bool true
  */
 function restoreDeletedEdits( &$title, $new ) {
 	global $wgNamespacesForEditPoints;
@@ -80,10 +94,10 @@ function restoreDeletedEdits( &$title, $new ) {
 		$dbr = wfGetDB( DB_MASTER );
 		$res = $dbr->select(
 			'revision',
-			array( 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ),
-			array( 'rev_page' => $title->getArticleID(), 'rev_user <> 0' ),
+			[ 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ],
+			[ 'rev_page' => $title->getArticleID(), 'rev_user <> 0' ],
 			__METHOD__,
-			array( 'GROUP BY' => 'rev_user_text' )
+			[ 'GROUP BY' => 'rev_user_text' ]
 		);
 		foreach ( $res as $row ) {
 			$stats = new UserStatsTrack( $row->rev_user, $row->rev_user_text );
