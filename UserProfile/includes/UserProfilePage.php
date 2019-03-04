@@ -1079,7 +1079,7 @@ class UserProfilePage extends Article {
 			$profileLinks['user-watchlist'] =
 				'<a href="' . htmlspecialchars( $watchlist->getFullURL() ) . '">' . wfMessage( 'user-watchlist' )->escaped() . '</a>';
 		} elseif ( $userContext->isLoggedIn() ) {
-			if ( $wgUser->isAllowed( 'editothersprofiles' ) ) {
+			if ( $userContext->isAllowed( 'editothersprofiles' ) ) {
 				$profileLinks['user-edit-profile'] =
 					'<a href="' . htmlspecialchars( $update_profile->getFullURL( 'wpUser=' . $user_safe ) ) . '">' . wfMessage( 'user-edit-this' )->escaped() . '</a>';
 			}
