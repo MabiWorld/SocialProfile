@@ -68,7 +68,9 @@ $wgUploadAvatarInRecentChanges = false; // Same as above, but for avatar uploadi
 $wgAvailableRights[] = 'avatarremove';
 $wgAvailableRights[] = 'editothersprofiles';
 $wgAvailableRights[] = 'populate-user-profiles';
+$wgAvailableRights[] = 'updateownprofile';
 $wgGroupPermissions['sysop']['avatarremove'] = true;
+$wgGroupPermissions['*']['updateownprofile'] = true;
 $wgGroupPermissions['staff']['editothersprofiles'] = true;
 $wgGroupPermissions['staff']['populate-user-profiles'] = true;
 

@@ -12,7 +12,7 @@
 class SpecialUpdateProfile extends UnlistedSpecialPage {
 
 	public function __construct() {
-		parent::__construct( 'UpdateProfile' );
+		parent::__construct( 'UpdateProfile', 'updateownprofile' );
 	}
 
 	/**
@@ -59,6 +59,9 @@ class SpecialUpdateProfile extends UnlistedSpecialPage {
 
 		// Database operations require write mode
 		$this->checkReadOnly();
+
+		// make sure user has the correct permissions
+		$this->checkPermissions();
 
 		// No need to allow blocked users to access this page, they could abuse it, y'know.
 		if ( $user->isBlocked() ) {
