@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Armin1392",
 			"Mjbmr"
 		]
 	},
@@ -32,11 +33,11 @@
 	"user-profile-interests-tv": "تلویزیون",
 	"user-profile-interests-music": "موسیقی",
 	"user-profile-update-button": "به روز رسانی",
-	"user-profile-sports-sport": "ورزش",
 	"user-profile-picture-yourpicture": "تصویر شما",
 	"user-profile-picture-large": "بزرگ",
 	"user-profile-picture-medlarge": "متوسط - بزرگ",
 	"user-profile-picture-medium": "متوسط",
 	"user-profile-picture-small": "کوچک",
-	"user-profile-picture-currentimage": "تصویر کنونی"
+	"user-profile-picture-currentimage": "تصویر کنونی",
+	"random-users-avatars-title": "دیدار اجتماع"
 }

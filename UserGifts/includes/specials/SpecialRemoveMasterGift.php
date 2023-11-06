@@ -2,6 +2,11 @@
 
 class RemoveMasterGift extends UnlistedSpecialPage {
 
+	/**
+	 * @var int ID of the gift we are removing
+	 */
+	public $gift_id;
+
 	public function __construct() {
 		parent::__construct( 'RemoveMasterGift', 'giftadmin' );
 	}
@@ -16,7 +21,7 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * Deletes a gift image from $wgUploadDirectory/awards/
+	 * Deletes a gift image from mwstore://<file_backend>
 	 *
 	 * @param int $id Internal ID number of the gift whose image we want to delete
 	 * @param string $size size of the image to delete
@@ -26,11 +31,15 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 	 * - l for large
 	 */
 	function deleteImage( $id, $size ) {
-		global $wgUploadDirectory;
-		$files = glob( $wgUploadDirectory . '/awards/' . $id . "_{$size}*" );
-		if ( $files && $files[0] ) {
-			$img = basename( $files[0] );
-			unlink( $wgUploadDirectory . '/awards/' . $img );
+		$backend = new SocialProfileFileBackend( 'awards' );
+
+		$extensions = [ 'png', 'gif', 'jpg', 'jpeg' ];
+		foreach ( $extensions as $ext ) {
+			if ( $backend->fileExists( '', $id, $size, $ext ) ) {
+				$backend->getFileBackend()->quickDelete( [
+					'src' => $backend->getPath( '', $id, $size, $ext )
+				] );
+			}
 		}
 	}
 
@@ -41,7 +50,7 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 	 * - has'delete' permission or..
 	 * - has the 'giftadmin' permission
 	 */
-	function canUserManage() {
+	private function canUserManage() {
 		$user = $this->getUser();
 
 		if (
@@ -73,8 +82,9 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 		}
 
 		// If user is blocked, s/he doesn't need to access this page
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
 		// Set the page title, robot policies, etc.
@@ -85,13 +95,17 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 
 		$this->gift_id = $request->getInt( 'gift_id' );
 
-		if ( !$this->gift_id || !is_numeric( $this->gift_id ) ) {
+		if ( !$this->gift_id ) {
 			$out->setPageTitle( $this->msg( 'g-error-title' )->plain() );
 			$out->addHTML( htmlspecialchars( $this->msg( 'g-error-message-invalid-link' )->plain() ) );
-			return false;
+			return;
 		}
 
-		if ( $request->wasPosted() && $_SESSION['alreadysubmitted'] == false ) {
+		if (
+			$request->wasPosted() &&
+			$user->matchEditToken( $request->getVal( 'wpEditToken' ) ) &&
+			$_SESSION['alreadysubmitted'] == false
+		) {
 			$_SESSION['alreadysubmitted'] = true;
 
 			$dbw = wfGetDB( DB_MASTER );
@@ -158,9 +172,10 @@ class RemoveMasterGift extends UnlistedSpecialPage {
 			</div>
 			<div class="visualClear"></div>
 			<div class="g-buttons">
-				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-remove' )->plain() ) . '" size="20" onclick="document.form1.submit()" />
+				<input type="submit" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-remove' )->plain() ) . '" size="20" />
 				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'cancel' )->plain() ) . '" size="20" onclick="history.go(-1)" />
 			</div>
+			<input type="hidden" name="wpEditToken" value="' . htmlspecialchars( $this->getUser()->getEditToken(), ENT_QUOTES ) . '" />
 		</form>';
 
 		return $output;

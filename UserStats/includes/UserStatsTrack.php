@@ -1,11 +1,24 @@
 <?php
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
 
 class UserStatsTrack {
 
-	// for referencing purposes
-	// key: statistic name in wgUserStatsPointValues -> database column name
+	/**
+	 * @var array Literally $wgUserStatsPointValues
+	 */
+	public $point_values;
+
+	/**
+	 * @var User The user (object) whose stats we're dealing with here
+	 */
+	public $user;
+
+	/**
+	 * @var array For referencing purposes
+	 *   key: statistic name in wgUserStatsPointValues -> database column name in user_stats table
+	 */
 	public $stats_fields = [
 		'edit' => 'stats_edit_count',
 		'vote' => 'stats_vote_count',
@@ -47,34 +60,44 @@ class UserStatsTrack {
 	];
 
 	/**
-	 * @param $user_id Integer: ID number of the user that we want to track stats for
-	 * @param $user_name Mixed: user's name; if not supplied, then the user ID
-	 * 							will be used to get the user name from DB.
+	 * Constructor -- can be called with:
+	 * - a User object
+	 * - just an actor ID
+	 * - user ID + user name combo (legacy b/c)
+	 * - user ID + empty string (weird legacy special case)
 	 */
-	function __construct( $user_id, $user_name = '' ) {
+	public function __construct() {
 		global $wgUserStatsPointValues;
 
-		$this->user_id = $user_id;
-		if ( !$user_name ) {
-			$user = User::newFromId( $this->user_id );
-			$user->loadFromDatabase();
-			$user_name = $user->getName();
+		$args = func_get_args();
+		if ( count( $args ) < 2 ) {
+			// Maybe it's an actor ID?
+			if ( $args[0] instanceof User ) {
+				$this->user = $args[0];
+			} else {
+				$this->user = User::newFromActorId( $args[0] );
+			}
+		} elseif ( count( $args ) === 2 ) {
+			// Old-school style of passing an UID and a name, in that order
+			$this->user = User::newFromId( $args[0] );
 		}
 
-		$this->user_name = $user_name;
+		$this->user->load();
+
 		$this->point_values = $wgUserStatsPointValues;
+
 		$this->initStatsTrack();
 	}
 
 	/**
 	 * Checks if records for the given user are present in user_stats table and if not, adds them
 	 */
-	function initStatsTrack() {
+	private function initStatsTrack() {
 		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_stats',
-			[ 'stats_user_id' ],
-			[ 'stats_user_id' => $this->user_id ],
+			[ 'stats_actor' ],
+			[ 'stats_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
 
@@ -86,13 +109,12 @@ class UserStatsTrack {
 	/**
 	 * Adds a record for the given user into the user_stats table
 	 */
-	function addStatRecord() {
+	private function addStatRecord() {
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->insert(
 			'user_stats',
 			[
-				'stats_user_id' => $this->user_id,
-				'stats_user_name' => $this->user_name,
+				'stats_actor' => $this->user->getActorId(),
 				'stats_total_points' => 1000
 			],
 			__METHOD__
@@ -100,31 +122,33 @@ class UserStatsTrack {
 	}
 
 	/**
-	 * Deletes Memcached entries
+	 * Deletes cache entries
 	 */
-	function clearCache() {
-		global $wgMemc;
+	public function clearCache() {
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
 		// clear stats cache for current user
-		$key = $wgMemc->makeKey( 'user', 'stats', $this->user_id );
-		$wgMemc->delete( $key );
+		$key = $cache->makeKey( 'user', 'stats', 'actor_id', $this->user->getActorId() );
+		$cache->delete( $key );
 	}
 
 	/**
 	 * Increase a given social statistic field by $val.
 	 *
-	 * @param $field String: field name in user_stats database table
-	 * @param $val Integer: increase $field by this amount, defaults to 1
+	 * @param string $field Field name key, e.g. 'edit' for referencing the 'stats_edit_count' field
+	 *   in user_stats database table
+	 * @param int $val Increase $field by this amount, defaults to 1
 	 */
 	function incStatField( $field, $val = 1 ) {
-		global $wgUser, $wgMemc, $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
+		global $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
 
-		if ( !$wgUser->isBot() && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		if ( !$this->user->isBot() && !$this->user->isAnon() && $this->stats_fields[$field] ) {
 			$dbw = wfGetDB( DB_MASTER );
 			$dbw->update(
 				'user_stats',
 				[ $this->stats_fields[$field] . '=' . $this->stats_fields[$field] . "+{$val}" ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 			$this->updateTotalPoints();
@@ -144,14 +168,14 @@ class UserStatsTrack {
 			$s = $dbw->selectRow(
 				'user_stats',
 				[ $this->stats_fields[$field] ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 			$stat_field = $this->stats_fields[$field];
 			$field_count = $s->$stat_field;
 
-			$key = $wgMemc->makeKey( 'system_gift', 'id', $field . '-' . $field_count );
-			$data = $wgMemc->get( $key );
+			$key = $cache->makeKey( 'system_gift', 'id', $field . '-' . $field_count );
+			$data = $cache->get( $key );
 
 			if ( $data ) {
 				$logger = LoggerFactory::getInstance( 'SocialProfile' );
@@ -162,12 +186,12 @@ class UserStatsTrack {
 				$g = new SystemGifts();
 				$systemGiftID = $g->doesGiftExistForThreshold( $field, $field_count );
 				if ( $systemGiftID ) {
-					$wgMemc->set( $key, $systemGiftID, 60 * 30 );
+					$cache->set( $key, $systemGiftID, 60 * 30 );
 				}
 			}
 
 			if ( $systemGiftID ) {
-				$sg = new UserSystemGifts( $this->user_name );
+				$sg = new UserSystemGifts( $this->user );
 				$sg->sendSystemGift( $systemGiftID );
 			}
 		}
@@ -176,18 +200,19 @@ class UserStatsTrack {
 	/**
 	 * Decrease a given social statistic field by $val.
 	 *
-	 * @param string $field field name in user_stats database table
-	 * @param int $val decrease $field by this amount, defaults to 1
+	 * @param string $field Field name key, e.g. 'edit' for referencing the 'stats_edit_count' field
+	 *   in user_stats database table
+	 * @param int $val Decrease $field by this amount, defaults to 1
 	 */
 	function decStatField( $field, $val = 1 ) {
-		global $wgUser, $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
+		global $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
 
-		if ( !$wgUser->isBot() && !$wgUser->isAnon() && $this->stats_fields[$field] ) {
+		if ( !$this->user->isBot() && !$this->user->isAnon() && $this->stats_fields[$field] ) {
 			$dbw = wfGetDB( DB_MASTER );
 			$dbw->update(
 				'user_stats',
 				[ $this->stats_fields[$field] . '=' . $this->stats_fields[$field] . "-{$val}" ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 
@@ -206,119 +231,6 @@ class UserStatsTrack {
 	}
 
 	/**
-	 * Update the amount of comments the user has submitted.
-	 * Comment count is fetched from the Comments table, which is introduced by
-	 * the extension with the same name.
-	 */
-	function updateCommentCount() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$comments = $dbw->select(
-				'Comments',
-				'COUNT(*) AS CommentCount',
-				[ 'Comment_user_id' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[
-					'stats_comment_count' => $comments->CommentCount
-				],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__
-			);
-
-			$this->clearCache();
-		}
-	}
-
-	/**
-	 * Update the amount of times the user has been added into someone's
-	 * comment ignore list by fetching data from the Comments_block table,
-	 * which is introduced by the Comments extension.
-	 */
-	function updateCommentIgnored() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$blockedComments = $dbw->select(
-				'Comments_block',
-				'COUNT(*) AS CommentCount',
-				[ 'cb_user_id_blocked' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[
-					'stats_comment_blocked' => $blockedComments->CommentCount
-				],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__
-			);
-
-			$this->clearCache();
-		}
-	}
-
-	/**
-	 * Update the amount of edits for a given user
-	 * Edit count is fetched from revision table
-	 */
-	function updateEditCount() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$edits = $dbw->select(
-				'revision',
-				'COUNT(*) AS EditsCount',
-				[ 'rev_user' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[
-					'stats_edit_count' => $edits->EditsCount
-				],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__
-			);
-
-			$this->clearCache();
-		}
-	}
-
-	/**
-	 * Update the amount of votes for a given user.
-	 * Vote count is fetched from the Vote table, which is introduced
-	 * by a separate extension.
-	 */
-	function updateVoteCount() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$votes = $dbw->select(
-				'Vote',
-				'COUNT(*) AS VoteCount',
-				[ 'vote_user_id' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[ 'stats_vote_count' => $votes->VoteCount ],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__
-			);
-
-			$this->clearCache();
-		}
-	}
-
-	/**
 	 * Updates the comment scores for the current user.
 	 *
 	 * @param int $voteType
@@ -326,7 +238,7 @@ class UserStatsTrack {
 	 * - ..else sets the amount of negative comment scores
 	 */
 	function updateCommentScoreRec( $voteType ) {
-		if ( $this->user_id != 0 ) {
+		if ( !$this->user->isAnon() ) {
 			$dbw = wfGetDB( DB_MASTER );
 
 			if ( $voteType == 1 ) {
@@ -338,7 +250,7 @@ class UserStatsTrack {
 			$commentIDs = $dbw->select(
 				'Comments',
 				'CommentID',
-				[ 'Comment_user_id' => $this->user_id ],
+				[ 'Comment_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 
@@ -360,7 +272,7 @@ class UserStatsTrack {
 			$res = $dbw->update(
 				'user_stats',
 				[ $columnName => $comments ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 
@@ -371,15 +283,13 @@ class UserStatsTrack {
 	/**
 	 * Updates the amount of relationships (friends or foes) if the user isn't
 	 * an anonymous one.
-	 * This is called by UserRelationship::removeRelationshipByUserID(), which
+	 * This is called by UserRelationship::removeRelationshipBy(), which
 	 * in turn is called when removing friends or foes.
 	 *
 	 * @param int $relType 1 for updating friends
 	 */
 	function updateRelationshipCount( $relType ) {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
+		if ( !$this->user->isAnon() ) {
 			$dbw = wfGetDB( DB_MASTER );
 			if ( $relType == 1 ) {
 				$col = 'stats_friends_count';
@@ -389,85 +299,13 @@ class UserStatsTrack {
 			$relationships = $dbw->selectField(
 				'user_relationship',
 				'COUNT(*) AS rel_count',
-				[ 'r_user_id' => $this->user_id, 'r_type' => $relType ],
+				[ 'r_actor' => $this->user->getActorId(), 'r_type' => $relType ],
 				__METHOD__
 			);
 			$res = $dbw->update(
 				'user_stats',
 				[ $col => $relationships ],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__,
-				[ 'LOW_PRIORITY' ]
-			);
-		}
-	}
-
-	/**
-	 * Updates the amount of received gifts if the user isn't an anon.
-	 */
-	function updateGiftCountRec() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$gifts = $dbw->select(
-				'user_gift',
-				'COUNT(*) AS gift_count',
-				[ 'ug_user_id_to' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[ 'stats_gifts_rec_count' => $gifts->gift_count ],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__,
-				[ 'LOW_PRIORITY' ]
-			);
-		}
-	}
-
-	/**
-	 * Updates the amount of sent gifts if the user isn't an anon.
-	 */
-	function updateGiftCountSent() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$gifts = $dbw->select(
-				'user_gift',
-				'COUNT(*) AS gift_count',
-				[ 'ug_user_id_from' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[ 'stats_gifts_sent_count' => $gifts->gift_count ],
-				[ 'stats_user_id' => $this->user_id ],
-				__METHOD__,
-				[ 'LOW_PRIORITY' ]
-			);
-		}
-	}
-
-	/**
-	 * Update the amount of users our user has referred to the wiki.
-	 */
-	public function updateReferralComplete() {
-		global $wgUser;
-
-		if ( !$wgUser->isAnon() ) {
-			$dbw = wfGetDB( DB_MASTER );
-			$referrals = $dbw->select(
-				'user_register_track',
-				'COUNT(*) AS thecount',
-				[ 'ur_user_id_referral' => $this->user_id ],
-				__METHOD__
-			);
-			$res = $dbw->update(
-				'user_stats',
-				[ 'stats_referrals_completed' => $referrals->thecount ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__,
 				[ 'LOW_PRIORITY' ]
 			);
@@ -476,13 +314,12 @@ class UserStatsTrack {
 
 	public function updateWeeklyPoints( $points ) {
 		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select(
+		$row = $dbw->selectRow(
 			'user_points_weekly',
-			'up_user_id',
-			[ "up_user_id = {$this->user_id}" ],
+			'up_actor',
+			[ 'up_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
-		$row = $dbw->fetchObject( $res );
 
 		if ( !$row ) {
 			$this->addWeekly();
@@ -491,7 +328,7 @@ class UserStatsTrack {
 			$dbw->update(
 				'user_points_weekly',
 				[ 'up_points=up_points+' . $points ],
-				[ 'up_user_id' => $this->user_id ],
+				[ 'up_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 		}
@@ -505,23 +342,19 @@ class UserStatsTrack {
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->insert(
 			'user_points_weekly',
-			[
-				'up_user_id' => $this->user_id,
-				'up_user_name' => $this->user_name
-			],
+			[ 'up_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
 	}
 
 	public function updateMonthlyPoints( $points ) {
 		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select(
+		$row = $dbw->selectRow(
 			'user_points_monthly',
-			'up_user_id',
-			[ "up_user_id = {$this->user_id}" ],
+			'up_actor',
+			[ 'up_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
-		$row = $dbw->fetchObject( $res );
 		if ( !$row ) {
 			$this->addMonthly();
 		}
@@ -529,7 +362,7 @@ class UserStatsTrack {
 			$dbw->update(
 				'user_points_monthly',
 				[ 'up_points=up_points+' . $points ],
-				[ 'up_user_id' => $this->user_id ],
+				[ 'up_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 		}
@@ -543,10 +376,7 @@ class UserStatsTrack {
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->insert(
 			'user_points_monthly',
-			[
-				'up_user_id' => $this->user_id,
-				'up_user_name' => $this->user_name
-			],
+			[ 'up_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
 	}
@@ -554,19 +384,19 @@ class UserStatsTrack {
 	/**
 	 * Updates the total amount of points the user has.
 	 *
-	 * @return Array
+	 * @return array
 	 */
 	public function updateTotalPoints() {
 		global $wgUserLevels;
 
-		if ( $this->user_id == 0 ) {
+		if ( $this->user->isAnon() ) {
 			return [];
 		}
 
 		$stats_data = [];
 		if ( is_array( $wgUserLevels ) ) {
 			// Load points before update
-			$stats = new UserStats( $this->user_id, $this->user_name );
+			$stats = new UserStats( $this->user );
 			$stats_data = $stats->getUserStats();
 			$points_before = $stats_data['points'];
 
@@ -576,13 +406,12 @@ class UserStatsTrack {
 		}
 
 		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select(
+		$row = $dbw->selectRow(
 			'user_stats',
 			'*',
-			[ "stats_user_id = {$this->user_id}" ],
+			[ 'stats_actor' => $this->user->getActorId() ],
 			__METHOD__
 		);
-		$row = $dbw->fetchObject( $res );
 		if ( $row ) {
 			// recaculate point total
 			$new_total_points = 1000;
@@ -599,7 +428,7 @@ class UserStatsTrack {
 			$dbw->update(
 				'user_stats',
 				[ 'stats_total_points' => $new_total_points ],
-				[ 'stats_user_id' => $this->user_id ],
+				[ 'stats_actor' => $this->user->getActorId() ],
 				__METHOD__
 			);
 
@@ -610,26 +439,25 @@ class UserStatsTrack {
 				$level_number_after = $user_level->getLevelNumber();
 
 				// Check if the user advanced to a new level on this update
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable False positive, $level_number_before IS set
 				if ( $level_number_after > $level_number_before ) {
 					$m = new UserSystemMessage();
 					$m->addMessage(
-						$this->user_name,
-						2,
+						$this->user,
+						UserSystemMessage::TYPE_LEVELUP,
 						wfMessage( 'level-advanced-to', $user_level->getLevelName() )->inContentLanguage()->parse()
 					);
 					$m->sendAdvancementNotificationEmail(
-						$this->user_id,
+						$this->user,
 						$user_level->getLevelName()
 					);
 
 					if ( ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ) {
-						$userFrom = User::newFromId( $this->user_id );
-
 						EchoEvent::create( [
 							'type' => 'social-level-up',
-							'agent' => $userFrom,
+							'agent' => $this->user,
 							'extra' => [
-								'notifyAgent' => true,
+								'notifyAgent' => true, // backwards compatibility for MW 1.32 and below
 								'new-level' => $user_level->getLevelName()
 							]
 						] );

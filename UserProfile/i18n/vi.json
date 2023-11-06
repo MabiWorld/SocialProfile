@@ -1,7 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Minh Nguyen"
+			"Minh Nguyen",
+			"Vinhtantran"
 		]
 	},
 	"user-awards-title": "Huy chương",
@@ -59,7 +60,6 @@
 	"user-profile-interests-eats": "Đồ ăn",
 	"user-profile-interests-drinks": "Đồ uống",
 	"user-profile-update-button": "Cập nhật",
-	"user-profile-sports-sport": "Thể thao",
 	"uploadavatar": "Tải lên hình của bạn",
 	"user-profile-picture-yourpicture": "Hình của bạn",
 	"user-profile-picture-large": "Lớn",
@@ -73,5 +73,6 @@
 	"user-no-images": "Chưa tải hình lên",
 	"user-page-link": "Trang cá nhân",
 	"user-wiki-link": "Trang cá nhân wiki",
-	"user-type-toggle-old": "Sử dụng trang cá nhân wiki"
+	"user-type-toggle-old": "Sử dụng trang cá nhân wiki",
+	"random-users-avatars-title": "Gặp gỡ cộng đồng"
 }

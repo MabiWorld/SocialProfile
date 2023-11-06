@@ -1,10 +1,15 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * wAvatar class - used to display avatars
+ *
  * Example usage:
  * @code
- *	$avatar = new wAvatar( $wgUser->getId(), 'l' );
- *	$wgOut->addHTML( $avatar->getAvatarURL() );
+ *	$context = RequestContext::getMain();
+ *	$avatar = new wAvatar( $context->getUser()->getId(), 'l' );
+ *	$context->getOutput()->addHTML( $avatar->getAvatarURL() );
  * @endcode
  * This would display the current user's largest avatar on the page.
  *
@@ -14,49 +19,116 @@
 
 // phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class wAvatar {
+	/** @var string|null */
 	public $user_name = null;
+
+	/** @var int */
 	public $user_id;
-	public $avatar_type = 0;
+
+	/** @var string Avatar size (abbreviation): s/m/ml/l */
+	public $avatar_size;
 
 	/**
-	 * @param $userid Integer: user's internal ID number
-	 * @param $size string
-	 * - 's' for small
-	 * - 'm' for medium
-	 * - 'ml' for medium-large
-	 * - 'l' for large
+	 * @param int $userId User's internal ID number
+	 * @param string $size Avatar image size
+	 * - 's' for small (16x16px)
+	 * - 'm' for medium (30x30px)
+	 * - 'ml' for medium-large (50x50px)
+	 * - 'l' for large (75x75px)
 	 */
-	function __construct( $userId, $size ) {
+	public function __construct( $userId, $size ) {
 		$this->user_id = $userId;
 		$this->avatar_size = $size;
 	}
 
 	/**
-	 * Fetches the avatar image's name from the filesystem
+	 * Check if there is a default avatar image with the supplied $size.
+	 *
+	 * @param string $size Avatar image size
+	 * @return bool|null Returns null on failure
+	 */
+	private function defaultAvatarExists( $size ) {
+		$backend = new SocialProfileFileBackend( 'avatars' );
+		return $backend->getFileBackend()->fileExists( [
+			'src' => $backend->getContainerStoragePath() . '/default_' . $size . '.gif',
+		] );
+	}
+
+	/**
+	 * Upload a default avatar image in the supplied $size.
+	 *
+	 * @param string $size Avatar image size
+	 * @return StatusValue
+	 */
+	private function uploadDefaultAvatars( $size ) {
+		$backend = new SocialProfileFileBackend( 'avatars' );
+		return $backend->getFileBackend()->quickStore( [
+			'src' => __DIR__ . '/../../../avatars/default_' . $size . '.gif',
+			'dst' => $backend->getContainerStoragePath() . '/default_' . $size . '.gif',
+		] );
+	}
+
+	/**
+	 * Fetches the avatar image's name from the file backend
 	 *
 	 * @return string Avatar image's file name i.e. default_l.gif or wikidb_3_l.jpg;
 	 * - First part for non-default images is the database name
 	 * - Second part is the user's ID number
 	 * - Third part is the letter for image size (s, m, ml or l)
 	 */
-	function getAvatarImage() {
-		global $wgAvatarKey, $wgUploadDirectory, $wgMemc;
+	public function getAvatarImage() {
+		global $wgAvatarKey;
 
-		$key = $wgMemc->makeKey( 'user', 'profile', 'avatar', $this->user_id, $this->avatar_size );
-		$data = $wgMemc->get( $key );
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$key = $cache->makeKey( 'user', 'profile', 'avatar', $this->user_id, $this->avatar_size );
+		$data = $cache->get( $key );
 
 		// Load from memcached if possible
 		if ( $data ) {
 			$avatar_filename = $data;
 		} else {
-			$files = glob( $wgUploadDirectory . '/avatars/' . $wgAvatarKey . '_' . $this->user_id . '_' . $this->avatar_size . "*" );
-			if ( !isset( $files[0] ) || !$files[0] ) {
-				$avatar_filename = 'default_' . $this->avatar_size . '.gif';
-			} else {
-				$avatar_filename = basename( $files[0] ) . '?r=' . filemtime( $files[0] );
+			// @todo FIXME: This seems unnecessarily intensive since this really
+			// should be done at install time and never again afterwards.
+			// Move this to SocialProfileHooks#onLoadExtensionSchemaUpdates or something?
+			if ( !$this->defaultAvatarExists( 'l' ) ) {
+				$this->uploadDefaultAvatars( 'l' );
 			}
-			$wgMemc->set( $key, $avatar_filename, 60 * 60 * 24 ); // cache for 24 hours
+
+			if ( !$this->defaultAvatarExists( 'm' ) ) {
+				$this->uploadDefaultAvatars( 'm' );
+			}
+
+			if ( !$this->defaultAvatarExists( 'ml' ) ) {
+				$this->uploadDefaultAvatars( 'ml' );
+			}
+
+			if ( !$this->defaultAvatarExists( 's' ) ) {
+				$this->uploadDefaultAvatars( 's' );
+			}
+
+			$avatar_filename = 'default_' . $this->avatar_size . '.gif';
+
+			$backend = new SocialProfileFileBackend( 'avatars' );
+			$extensions = [ 'png', 'gif', 'jpg', 'jpeg' ];
+			foreach ( $extensions as $ext ) {
+				if ( $backend->fileExists( $wgAvatarKey . '_', $this->user_id, $this->avatar_size, $ext ) ) {
+					$avatar_filename = $backend->getFileName(
+						$wgAvatarKey . '_', $this->user_id, $this->avatar_size, $ext
+					);
+
+					// @phan-suppress-next-line PhanTypeArraySuspiciousNullable Not sure why phan is unhappy
+					$avatar_filename .= '?r=' . $backend->getFileBackend()->getFileStat( [
+						'src' => $backend->getContainerStoragePath() . '/' . $avatar_filename
+					] )['mtime'];
+
+					// We only really care about the first one being found, so exit once it finds one
+					break;
+				}
+			}
+
+			$cache->set( $key, $avatar_filename, 60 * 60 * 24 ); // cache for 24 hours
 		}
+
 		return $avatar_filename;
 	}
 
@@ -64,15 +136,21 @@ class wAvatar {
 	 * @param array $extraParams Array of extra parameters to give to the image
 	 * @return string <img> HTML tag with full path to the avatar image
 	 */
-	function getAvatarURL( $extraParams = [] ) {
-		global $wgUploadBaseUrl, $wgUploadPath, $wgUserProfileDisplay;
+	public function getAvatarURL( $extraParams = [] ) {
+		global $wgUserProfileDisplay, $wgNativeImageLazyLoading;
 
-		$uploadPath = $wgUploadBaseUrl ? $wgUploadBaseUrl . $wgUploadPath : $wgUploadPath;
+		$backend = new SocialProfileFileBackend( 'avatars' );
+
 		$defaultParams = [
-			'src' => "{$uploadPath}/avatars/{$this->getAvatarImage()}",
+			'src' => $backend->getFileHttpUrlFromName( $this->getAvatarImage() ),
 			'border' => '0',
 			'class' => 'mw-socialprofile-avatar'
 		];
+
+		if ( $wgNativeImageLazyLoading ) {
+			$defaultParams['loading'] = 'lazy';
+		}
+
 		// Allow callers to add a different alt attribute and only add this
 		// default one if no alt attribute was provided in $extraParams
 		if ( empty( $extraParams['alt'] ) ) {
@@ -100,7 +178,7 @@ class wAvatar {
 	 *
 	 * @return bool True if they have a default avatar, false if they've uploaded their own
 	 */
-	function isDefault() {
+	public function isDefault() {
 		return strpos( $this->getAvatarImage(), 'default_' ) !== false;
 	}
 

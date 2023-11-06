@@ -1,7 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Als-Holder"
+			"Als-Holder",
+			"Jack Phoenix"
 		]
 	},
 	"giftmanager": "Gschänkverwaltig",
@@ -29,12 +30,12 @@
 	"g-error-do-not-own": "Dir ghert des Gschänk nit.",
 	"g-error-message-blocked": "Du bisch im Momänt gsperrt un chasch kei Gschänk mache",
 	"g-error-message-invalid-link": "S Gleich, wu Du yygee hesch, isch nit giltig.",
-	"g-error-message-login": "Du muesch aagmäldet syy go Gschänk mache",
+	"g-error-message-login": "Du muesch [[Special:UserLogin|aagmäldet syy]] go Gschänk mache.",
 	"g-error-message-no-user": "Dää Benutzer, wu Du witt aelueg, git s nit.",
 	"g-error-message-to-yourself": "Du chasch Dir nit sälber e Gschänk mache.",
 	"g-error-title": "Hoppla, do lauft ebis scheps!",
 	"g-file-instructions": "S Bild muess e „jpeg“, „png“, „gif“ (kei animiert) syy, un e Dateigreßi haa, wu chleiner isch wie 100 kb.",
-	"g-from": "vu <a href=\"$1\">$2</a>",
+	"g-from": "vu [[User:$1|$1]]",
 	"g-gift": "Gschänk",
 	"g-gift-name": "Gschänkname",
 	"g-give-gift": "Schänke",
@@ -44,12 +45,11 @@
 	"g-give-enter-friend-title": "Wänn Du dr Benutzername vum Benutzer weisch, no trag en unten yy",
 	"g-given": "Des Gschänk isch scho $1 {{PLURAL:$1|Mol|Mol}} verschänkt wore",
 	"g-give-list-friends-title": "Wehl us Dyynere Fryndlischt",
-	"g-give-list-select": "wehl e Frynd uus",
 	"g-give-separator": "oder",
 	"g-give-no-user-message": "Gschänk un Uuszeichnige sin e scheni Art Dyyne Frynd e Freid z mache!",
 	"g-give-no-user-title": "Wäm wetsch ebis schänke?",
 	"g-give-to-user-title": "Schick s Gschänk \"$1\" an $2",
-	"g-give-to-user-message": "Wetsch $1 e <a href=\"$2\">ander Gschänk</a> gee?",
+	"g-give-to-user-message": "Wetsch $1 e [[Special:GiveGift/$1|ander Gschänk]] gee?",
 	"g-go-back": "Gang zrugg",
 	"g-imagesbelow": "Do unte chemme alli Bilder, wu uf däre Syte bruucht wäre",
 	"g-large": "Groß",

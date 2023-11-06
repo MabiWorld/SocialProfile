@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"CERminator",
+			"Obsuser",
 			"Palapa"
 		]
 	},
@@ -28,13 +29,12 @@
 	"g-error-do-not-own": "Vi ne posjedujete ovaj poklon.",
 	"g-error-message-no-user": "Korisnik kojeg pokušavate vidjeti ne postoji.",
 	"g-error-message-to-yourself": "Ne možete poslati poklon samom sebi.",
-	"g-from": "iz <a href=\"$1\">$2</a>",
+	"g-from": "iz [[User:$1|$1]]",
 	"g-gift": "poklon",
 	"g-gift-name": "naziv poklona",
 	"g-give-gift": "Pokloni poklon",
 	"g-give-all-message-title": "Dodaj poruku",
 	"g-give-all-title": "Pošalji poklon za $1",
-	"g-give-list-select": "odaberi prijatelja",
 	"g-give-separator": "ili",
 	"g-go-back": "Idi nazad",
 	"g-large": "Veliki",
@@ -42,7 +42,7 @@
 	"g-medium": "Srednje",
 	"g-mediumlarge": "Srednje-veliki",
 	"g-new": "novo",
-	"g-next": "Slijedeći",
+	"g-next": "Sljedeći",
 	"g-previous": "Preth",
 	"g-remove": "Ukloni",
 	"g-remove-gift": "Ukloni ovaj poklon",

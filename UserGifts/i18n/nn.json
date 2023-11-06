@@ -2,7 +2,9 @@
 	"@metadata": {
 		"authors": [
 			"Harald Khan",
+			"Jack Phoenix",
 			"Nghtwlkr",
+			"Njardarlogar",
 			"Ranveig"
 		]
 	},
@@ -31,12 +33,12 @@
 	"g-error-do-not-own": "Du eig ikkje denne gåva.",
 	"g-error-message-blocked": "Du er nett no blokkert og kan ikkje senda gåver.",
 	"g-error-message-invalid-link": "Lenkja du oppgav er ugyldig.",
-	"g-error-message-login": "Du lyt vera innlogga for å kunna gje gåver.",
+	"g-error-message-login": "Du lyt vera [[Special:UserLogin|innlogga]] for å kunna gje gåver.",
 	"g-error-message-no-user": "Brukaren du ynskjer å sjå finst ikkje.",
 	"g-error-message-to-yourself": "Du kan ikkje gje ei gåva til deg sjølv.",
 	"g-error-title": "Oi, du svingte feil!",
 	"g-file-instructions": "Biletet ditt lyt vera eit jpeg, png eller gif (ingen animerte gif-filer) og ha ein storleik på mindre enn 100 kb.",
-	"g-from": "frå <a href=\"$1\">$2</a>",
+	"g-from": "frå [[User:$1|$1]]",
 	"g-gift": "gåva",
 	"g-gift-name": "gåvenamn",
 	"g-give-gift": "Gje ei gåva",
@@ -46,12 +48,11 @@
 	"g-give-enter-friend-title": "Viss du kjenner namnet på brukaren, skriv det inn under.",
 	"g-given": "Denne gåva har vorten gjeven {{PLURAL:$1|éin gong|$1 gonger}}",
 	"g-give-list-friends-title": "Vel frå lista di over venner",
-	"g-give-list-select": "vel ein venn",
 	"g-give-separator": "eller",
 	"g-give-no-user-message": "Gåver og utmerkingar er ein flott måte å visa at du set pris på vennene dine.",
 	"g-give-no-user-title": "Kven ynskjer du å gje ei gåva til?",
 	"g-give-to-user-title": "Send gåva «$1» til $2",
-	"g-give-to-user-message": "Ynskjer du å gje $1 ei <a href=\"$2\">anna gåva</a>?",
+	"g-give-to-user-message": "Ynskjer du å gje $1 ei [[Special:GiveGift/$1|anna gåva]]?",
 	"g-go-back": "Attende",
 	"g-imagesbelow": "Nedanfor er bileta dine som vil verta nytta på sida",
 	"g-large": "Stort",

@@ -74,10 +74,19 @@ $specialPageAliases['bgn'] = [
 
 /** Bosnian (bosanski) */
 $specialPageAliases['bs'] = [
+	'EditProfile' => [ 'Uredi_profil' ],
+	'GenerateTopUsersReport' => [ 'Napravi_izvještaj_top_korisnika' ],
+	'PopulateUserProfiles' => [ 'Popuni_profile_korisnika' ],
 	'RemoveAvatar' => [ 'Ukloni_sličicu' ],
+	'SendBoardBlast' => [ 'Pošalji_mnogo_poruka' ],
+	'TopFansByStatistic' => [ 'Najbolji_obožavatelji' ],
 	'TopUsers' => [ 'Top_korisnici' ],
+	'TopUsersRecent' => [ 'Skorašnji_top_korisnici' ],
+	'ToggleUserPage' => [ 'Prekidač_za_korisničku_stranicu' ],
 	'UpdateEditCounts' => [ 'Ažuriraj_broj_izmjena' ],
 	'UpdateProfile' => [ 'Ažuriraj_profil' ],
+	'UploadAvatar' => [ 'Postavi_sličicu' ],
+	'UserBoard' => [ 'Korisnička_tabla' ],
 ];
 
 /** German (Deutsch) */
@@ -151,6 +160,23 @@ $specialPageAliases['hsb'] = [
 	'UpdateProfile' => [ 'Profil_aktualizować' ],
 	'UploadAvatar' => [ 'Awatar_nahrać' ],
 	'UserBoard' => [ 'Wužiwarska_deska' ],
+];
+
+/** Croatian (hrvatski) */
+$specialPageAliases['hr'] = [
+	'EditProfile' => [ 'Uredi_profil' ],
+	'GenerateTopUsersReport' => [ 'Napravi_izvještaj_top_suradnika' ],
+	'PopulateUserProfiles' => [ 'Popuni_profile_suradnika' ],
+	'RemoveAvatar' => [ 'Ukloni_sličicu' ],
+	'SendBoardBlast' => [ 'Pošalji_puno_poruka' ],
+	'TopFansByStatistic' => [ 'Najbolji_obožavatelji' ],
+	'TopUsers' => [ 'Top_suradnici' ],
+	'TopUsersRecent' => [ 'Skorašnji_top_suradnici' ],
+	'ToggleUserPage' => [ 'Prekidač_za_stranicu_suradnika' ],
+	'UpdateEditCounts' => [ 'Ažuriraj_broj_izmjena' ],
+	'UpdateProfile' => [ 'Ažuriraj_profil' ],
+	'UploadAvatar' => [ 'Postavi_sličicu' ],
+	'UserBoard' => [ 'Tabla_suradnika' ],
 ];
 
 /** Haitian (Kreyòl ayisyen) */
@@ -363,18 +389,36 @@ $specialPageAliases['sk'] = [
 
 /** Serbian (Cyrillic script) (српски (ћирилица)) */
 $specialPageAliases['sr-ec'] = [
+	'EditProfile' => [ 'Уреди_профил' ],
+	'GenerateTopUsersReport' => [ 'Направи_извештај_најбољих_корисника' ],
+	'PopulateUserProfiles' => [ 'Попуни_профиле_корисника' ],
 	'RemoveAvatar' => [ 'Уклони_сличицу' ],
-	'TopUsers' => [ 'Топ_корисници' ],
+	'SendBoardBlast' => [ 'Пошаљи_много_порука' ],
+	'TopFansByStatistic' => [ 'Најбољи_обожаваоци' ],
+	'TopUsers' => [ 'Најбољи_корисници', 'Топ_корисници' ],
+	'TopUsersRecent' => [ 'Скорашњи_најбољи_корисници' ],
+	'ToggleUserPage' => [ 'Прекидач_за_корисничку_страницу' ],
 	'UpdateEditCounts' => [ 'Ажурирај_број_измена' ],
 	'UpdateProfile' => [ 'Ажурирај_профил' ],
+	'UploadAvatar' => [ 'Постави_сличицу' ],
+	'UserBoard' => [ 'Корисничка_табла' ],
 ];
 
 /** Serbian (Latin script) (srpski (latinica)) */
 $specialPageAliases['sr-el'] = [
+	'EditProfile' => [ 'Uredi_profil' ],
+	'GenerateTopUsersReport' => [ 'Napravi_izveštaj_najboljih_korisnika' ],
+	'PopulateUserProfiles' => [ 'Popuni_profile_korisnika' ],
 	'RemoveAvatar' => [ 'Ukloni_sličicu' ],
-	'TopUsers' => [ 'Top_korisnici' ],
+	'SendBoardBlast' => [ 'Pošalji_mnogo_poruka' ],
+	'TopFansByStatistic' => [ 'Najbolji_obožavaoci' ],
+	'TopUsers' => [ 'Najbolji_korisnici', 'Top_korisnici' ],
+	'TopUsersRecent' => [ 'Skorašnji_najbolji_korisnici' ],
+	'ToggleUserPage' => [ 'Prekidač_za_korisničku_stranicu' ],
 	'UpdateEditCounts' => [ 'Ažuriraj_broj_izmena' ],
 	'UpdateProfile' => [ 'Ažuriraj_profil' ],
+	'UploadAvatar' => [ 'Postavi_sličicu' ],
+	'UserBoard' => [ 'Korisnička_tabla' ],
 ];
 
 /** Swedish (svenska) */
@@ -419,31 +463,34 @@ $specialPageAliases['tr'] = [
 
 /** Simplified Chinese (中文（简体)) */
 $specialPageAliases['zh-hans'] = [
-	'EditProfile' => [ '编辑简介' ],
-	'GenerateTopUsersReport' => [ '生成置顶用户报告' ],
-	'PopulateUserProfiles' => [ '填充用户简介' ],
+	'EditProfile' => [ '编辑个人资料', '编辑简介' ],
+	'GenerateTopUsersReport' => [ '生成用户排行榜报告' ],
+	'PopulateUserProfiles' => [ '填写用户资料页' ],
 	'RemoveAvatar' => [ '删除头像' ],
-	'SendBoardBlast' => [ '递送损坏的董事会' ],
-	'TopFansByStatistic' => [ '基于统计结果的置顶爱好者' ],
-	'TopUsers' => [ '置顶用户' ],
-	'TopUsersRecent' => [ '置顶用户报告' ],
-	'ToggleUserPage' => [ '开启关闭用户页' ],
+	'SendBoardBlast' => [ '群发消息' ],
+	'TopFansByStatistic' => [ '基于统计结果的粉丝排行榜' ],
+	'TopUsers' => [ '用户排行榜' ],
+	'TopUsersRecent' => [ '新近用户排行榜' ],
+	'ToggleUserPage' => [ '开关用户页' ],
 	'UpdateEditCounts' => [ '更新编辑计数' ],
-	'UpdateProfile' => [ '更新简介' ],
-	'UploadAvatar' => [ '更新头像' ],
-	'UserBoard' => [ '用户董事会' ],
+	'UpdateProfile' => [ '更新个人资料' ],
+	'UploadAvatar' => [ '上传头像' ],
+	'UserBoard' => [ '用户墙' ],
 ];
 
 /** Traditional Chinese (中文（繁體)) */
 $specialPageAliases['zh-hant'] = [
-	'EditProfile' => [ '編輯簡介' ],
-	'GenerateTopUsersReport' => [ '生成使用者報告頭' ],
-	'PopulateUserProfiles' => [ '填寫使用者資訊' ],
+	'EditProfile' => [ '編輯個人檔案', '編輯簡介' ],
+	'GenerateTopUsersReport' => [ '產生使用者排行榜報告' ],
+	'PopulateUserProfiles' => [ '填寫使用者檔案', '填寫使用者資訊' ],
 	'RemoveAvatar' => [ '移除頭像' ],
-	'TopUsers' => [ '前置使用者' ],
-	'TopUsersRecent' => [ '新近前置使用者' ],
+	'SendBoardBlast' => [ '批量傳送訊息' ],
+	'TopFansByStatistic' => [ '基於統計的粉絲排行榜' ],
+	'TopUsers' => [ '使用者排行榜' ],
+	'TopUsersRecent' => [ '新進使用者排行榜' ],
 	'ToggleUserPage' => [ '啟閉使用者頁面' ],
-	'UpdateEditCounts' => [ '更新編輯數位' ],
-	'UploadAvatar' => [ '上載頭像' ],
-	'UserBoard' => [ '使用者理事會' ],
+	'UpdateEditCounts' => [ '更新編輯次數' ],
+	'UpdateProfile' => [ '更新個人檔案' ],
+	'UploadAvatar' => [ '上傳頭像' ],
+	'UserBoard' => [ '使用者留言板' ],
 ];

@@ -28,6 +28,7 @@ class SpecialPopulateUserProfiles extends SpecialPage {
 	 */
 	public function execute( $params ) {
 		$out = $this->getOutput();
+		$request = $this->getRequest();
 		$user = $this->getUser();
 
 		// Make sure user has the correct permissions
@@ -37,13 +38,47 @@ class SpecialPopulateUserProfiles extends SpecialPage {
 		$this->checkReadOnly();
 
 		// If user is blocked, they don't need to access this page
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
-		// set headers
+		// Set the page title, robot policy, etc.
 		$this->setHeaders();
 
+		if ( $request->wasPosted() && $user->matchEditToken( $request->getVal( 'wpEditToken' ) ) ) {
+			$count = $this->populateProfiles();
+
+			// @todo Handle $count === 0 more gracefully
+			$out->addHTML( $this->msg( 'populate-user-profile-done' )->numParams( $count )->parse() );
+		} else {
+			$out->addHTML( $this->displayForm() );
+		}
+	}
+
+	/**
+	 * Render the confirmation form
+	 *
+	 * @return string HTML
+	 */
+	private function displayForm() {
+		$form = '<form method="post" name="populate-profiles-form" action="">';
+		$form .= $this->msg( 'populateuserprofiles-confirm' )->escaped();
+		$form .= '<br />';
+		$form .= Html::hidden( 'wpEditToken', $this->getUser()->getEditToken() );
+		$form .= Html::submitButton( $this->msg( 'htmlform-submit' )->text(), [ 'name' => 'wpSubmit' ] );
+		$form .= '</form>';
+		return $form;
+	}
+
+	/**
+	 * Get all users who have a User: page and populate the user_profile DB table
+	 * with information about them, namely their actor ID and that they prefer
+	 * a wikitext user page.
+	 *
+	 * @return int Amount of profiles populated
+	 */
+	private function populateProfiles() {
 		$dbw = wfGetDB( DB_MASTER );
 		$res = $dbw->select(
 			'page',
@@ -55,31 +90,30 @@ class SpecialPopulateUserProfiles extends SpecialPage {
 		$count = 0; // To avoid an annoying PHP notice
 
 		foreach ( $res as $row ) {
-			$user_name_title = Title::newFromDBkey( $row->page_title );
-			$user_name = $user_name_title->getText();
-			$user_id = User::idFromName( $user_name );
+			$userBeingProcessed = User::newFromName( $row->page_title );
+			if ( !$userBeingProcessed ) {
+				continue;
+			}
 
-			if ( $user_id > 0 ) {
-				$s = $dbw->selectRow(
+			$s = $dbw->selectRow(
+				'user_profile',
+				[ 'up_actor' ],
+				[ 'up_actor' => $userBeingProcessed->getActorId() ],
+				__METHOD__
+			);
+			if ( $s === false ) {
+				$dbw->insert(
 					'user_profile',
-					[ 'up_user_id' ],
-					[ 'up_user_id' => $user_id ],
+					[
+						'up_actor' => $userBeingProcessed->getActorId(),
+						'up_type' => 0
+					],
 					__METHOD__
 				);
-				if ( $s === false ) {
-					$dbw->insert(
-						'user_profile',
-						[
-							'up_user_id' => $user_id,
-							'up_type' => 0
-						],
-						__METHOD__
-					);
-					$count++;
-				}
+				$count++;
 			}
 		}
 
-		$out->addHTML( $this->msg( 'populate-user-profile-done' )->numParams( $count )->parse() );
+		return $count;
 	}
 }

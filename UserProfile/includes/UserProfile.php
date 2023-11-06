@@ -1,37 +1,44 @@
 <?php
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
 
 /**
  * Class to access profile data for a user
  */
 class UserProfile {
 	/**
-	 * @var int $user_id The current user's user ID.
+	 * @var User User object whose profile is being viewed
+	 */
+	public $user;
+
+	/**
+	 * @var int The current user's user ID.
+	 * @deprecated Prefer using $this->user to get an actor ID instead
 	 */
 	public $user_id;
 
 	/**
-	 * @var string $user_name The current user's user name.
+	 * @var string The current user's user name.
+	 * @deprecated Prefer using $this->user instead
 	 */
 	public $user_name;
 
 	/**
-	 * @var $profile Unused, remove me?
-	 */
-	public $profile;
-
-	/**
-	 * @var Integer: used in getProfileComplete()
+	 * @var int used in getProfileComplete()
 	 */
 	public $profile_fields_count;
 
 	/**
 	 * @var array Array of valid profile fields; used in getProfileComplete()
+	 * These _mostly_ correspond to the fields in the user_profile DB table.
+	 * If a field is not defined here, it won't be shown in profile pages!
+	 * @see https://phabricator.wikimedia.org/T212290
 	 */
 	public $profile_fields = [
 		'real_name',
 		'location_city',
 		'hometown_city',
+		'hometown_country',
 		'birthday',
 		'about',
 		'places_lived',
@@ -40,6 +47,7 @@ class UserProfile {
 		'schools',
 		'movies',
 		'tv',
+		'music',
 		'books',
 		'magazines',
 		'video_games',
@@ -53,26 +61,48 @@ class UserProfile {
 	];
 
 	/**
-	 * @var array $profile_missing Unused, remove me?
+	 * @var array Unused, remove me?
 	 */
 	public $profile_missing = [];
 
-	function __construct( $username ) {
-		$title1 = Title::newFromDBkey( $username );
-		$this->user_name = $title1->getText();
-		$this->user_id = User::idFromName( $this->user_name );
+	/**
+	 * @param User|string $username User object (preferred) or user name (legacy b/c)
+	 * @todo FIXME: will explode horribly if $username is an IP address (can't call
+	 *  the getters here because $this->user is not an object then; adding an
+	 *  instanceof check here will cause getProfile() instead to explode, etc.)
+	 */
+	public function __construct( $username ) {
+		if ( $username instanceof User ) {
+			$this->user = $username;
+		} else {
+			$this->user = User::newFromName( $username );
+		}
+		$this->user_name = $this->user->getName();
+		$this->user_id = $this->user->getId();
 	}
 
 	/**
-	 * Deletes the memcached key for $user_id.
+	 * Gets the memcached key for the given user.
 	 *
-	 * @param int $user_id User ID number
+	 * @param UserIdentity $user User object for the desired user
+	 * @return string
 	 */
-	static function clearCache( $user_id ) {
-		global $wgMemc;
+	public static function getCacheKey( $user ) {
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
-		$key = $wgMemc->makeKey( 'user', 'profile', 'info', $user_id );
-		$wgMemc->delete( $key );
+		// @phan-suppress-next-line PhanUndeclaredMethod Removed in MW 1.41
+		return $cache->makeKey( 'user', 'profile', 'info', 'actor_id', $user->getActorId() );
+	}
+
+	/**
+	 * Deletes the memcached key for the given user.
+	 *
+	 * @param UserIdentity $user User object for the desired user
+	 */
+	public static function clearCache( $user ) {
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+
+		$cache->delete( self::getCacheKey( $user ) );
 	}
 
 	/**
@@ -80,71 +110,74 @@ class UserProfile {
 	 * First tries fetching the info from memcached and if that fails,
 	 * queries the database.
 	 * Fetched info is cached in memcached.
+	 *
+	 * @return array
 	 */
 	public function getProfile() {
-		global $wgMemc;
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
-		$user = User::newFromId( $this->user_id );
-		$user->loadFromId();
+		$this->user->load();
 
 		// Try cache first
-		$key = $wgMemc->makeKey( 'user', 'profile', 'info', $this->user_id );
-		$data = $wgMemc->get( $key );
+		$key = self::getCacheKey( $this->user );
+		$data = $cache->get( $key );
 		if ( $data ) {
-			wfDebug( "Got user profile info for {$this->user_name} from cache\n" );
+			wfDebug( "Got user profile info for {$this->user->getName()} from cache\n" );
 			$profile = $data;
 		} else {
-			wfDebug( "Got user profile info for {$this->user_name} from DB\n" );
+			wfDebug( "Got user profile info for {$this->user->getName()} from DB\n" );
 			$dbr = wfGetDB( DB_REPLICA );
 			$row = $dbr->selectRow(
 				'user_profile',
 				'*',
-				[ 'up_user_id' => $this->user_id ],
+				[ 'up_actor' => $this->user->getActorId() ],
 				__METHOD__,
 				[ 'LIMIT' => 5 ]
 			);
 
+			$profile = [];
 			if ( $row ) {
-				$profile['user_id'] = $this->user_id;
+				$profile['actor'] = $this->user->getActorId();
 			} else {
 				$profile['user_page_type'] = 1;
-				$profile['user_id'] = 0;
+				$profile['actor'] = 0;
 			}
-			$showYOB = $user->getIntOption( 'showyearofbirth', !isset( $row->up_birthday ) ) == 1;
-			$issetUpBirthday = isset( $row->up_birthday ) ? $row->up_birthday : '';
-			$profile['location_city'] = isset( $row->up_location_city ) ? $row->up_location_city : '';
-			$profile['location_state'] = isset( $row->up_location_state ) ? $row->up_location_state : '';
-			$profile['location_country'] = isset( $row->up_location_country ) ? $row->up_location_country : '';
-			$profile['hometown_city'] = isset( $row->up_hometown_city ) ? $row->up_hometown_city : '';
-			$profile['hometown_state'] = isset( $row->up_hometown_state ) ? $row->up_hometown_state : '';
-			$profile['hometown_country'] = isset( $row->up_hometown_country ) ? $row->up_hometown_country : '';
+			$userOptionsLookup = MediaWikiServices::getInstance()->getUserOptionsLookup();
+			$showYOB = $userOptionsLookup->getIntOption( $this->user, 'showyearofbirth', (int)!isset( $row->up_birthday ) ) == 1;
+			$issetUpBirthday = $row->up_birthday ?? '';
+			$profile['location_city'] = $row->up_location_city ?? '';
+			$profile['location_state'] = $row->up_location_state ?? '';
+			$profile['location_country'] = $row->up_location_country ?? '';
+			$profile['hometown_city'] = $row->up_hometown_city ?? '';
+			$profile['hometown_state'] = $row->up_hometown_state ?? '';
+			$profile['hometown_country'] = $row->up_hometown_country ?? '';
 			$profile['birthday'] = $this->formatBirthday( $issetUpBirthday, $showYOB );
 
-			$profile['about'] = isset( $row->up_about ) ? $row->up_about : '';
-			$profile['places_lived'] = isset( $row->up_places_lived ) ? $row->up_places_lived : '';
-			$profile['websites'] = isset( $row->up_websites ) ? $row->up_websites : '';
-			$profile['relationship'] = isset( $row->up_relationship ) ? $row->up_relationship : '';
-			$profile['occupation'] = isset( $row->up_occupation ) ? $row->up_occupation : '';
-			$profile['schools'] = isset( $row->up_schools ) ? $row->up_schools : '';
-			$profile['movies'] = isset( $row->up_movies ) ? $row->up_movies : '';
-			$profile['music'] = isset( $row->up_music ) ? $row->up_music : '';
-			$profile['tv'] = isset( $row->up_tv ) ? $row->up_tv : '';
-			$profile['books'] = isset( $row->up_books ) ? $row->up_books : '';
-			$profile['magazines'] = isset( $row->up_magazines ) ? $row->up_magazines : '';
-			$profile['video_games'] = isset( $row->up_video_games ) ? $row->up_video_games : '';
-			$profile['snacks'] = isset( $row->up_snacks ) ? $row->up_snacks : '';
-			$profile['drinks'] = isset( $row->up_drinks ) ? $row->up_drinks : '';
-			$profile['custom_1'] = isset( $row->up_custom_1 ) ? $row->up_custom_1 : '';
-			$profile['custom_2'] = isset( $row->up_custom_2 ) ? $row->up_custom_2 : '';
-			$profile['custom_3'] = isset( $row->up_custom_3 ) ? $row->up_custom_3 : '';
-			$profile['custom_4'] = isset( $row->up_custom_4 ) ? $row->up_custom_4 : '';
-			$profile['custom_5'] = isset( $row->up_custom_5 ) ? $row->up_custom_5 : '';
-			$profile['user_page_type'] = isset( $row->up_type ) ? $row->up_type : '';
-			$wgMemc->set( $key, $profile );
+			$profile['about'] = $row->up_about ?? '';
+			$profile['places_lived'] = $row->up_places_lived ?? '';
+			$profile['websites'] = $row->up_websites ?? '';
+			$profile['relationship'] = $row->up_relationship ?? '';
+			$profile['occupation'] = $row->up_occupation ?? '';
+			$profile['schools'] = $row->up_schools ?? '';
+			$profile['movies'] = $row->up_movies ?? '';
+			$profile['music'] = $row->up_music ?? '';
+			$profile['tv'] = $row->up_tv ?? '';
+			$profile['books'] = $row->up_books ?? '';
+			$profile['magazines'] = $row->up_magazines ?? '';
+			$profile['video_games'] = $row->up_video_games ?? '';
+			$profile['snacks'] = $row->up_snacks ?? '';
+			$profile['drinks'] = $row->up_drinks ?? '';
+			$profile['custom_1'] = $row->up_custom_1 ?? '';
+			$profile['custom_2'] = $row->up_custom_2 ?? '';
+			$profile['custom_3'] = $row->up_custom_3 ?? '';
+			$profile['custom_4'] = $row->up_custom_4 ?? '';
+			$profile['custom_5'] = $row->up_custom_5 ?? '';
+			$profile['user_page_type'] = $row->up_type ?? '';
+			$cache->set( $key, $profile );
 		}
 
-		$profile['real_name'] = $user->getRealName();
-		$profile['email'] = $user->getEmail();
+		$profile['real_name'] = $this->user->getRealName();
+		$profile['email'] = $this->user->getEmail();
 
 		return $profile;
 	}
@@ -153,13 +186,14 @@ class UserProfile {
 	 * Format the user's birthday.
 	 *
 	 * @param string $birthday birthday in YYYY-MM-DD format
+	 * @param bool $showYear
 	 * @return string formatted birthday
 	 */
 	function formatBirthday( $birthday, $showYear = true ) {
 		$dob = explode( '-', $birthday );
 		if ( count( $dob ) == 3 ) {
-			$month = $dob[1];
-			$day = $dob[2];
+			$month = (int)$dob[1];
+			$day = (int)$dob[2];
 			if ( !$showYear ) {
 				if ( $dob[1] == '00' && $dob[2] == '00' ) {
 					return '';
@@ -167,7 +201,7 @@ class UserProfile {
 					return date( 'F jS', mktime( 0, 0, 0, $month, $day ) );
 				}
 			}
-			$year = $dob[0];
+			$year = (int)$dob[0];
 			if ( $dob[0] == '00' && $dob[1] == '00' && $dob[2] == '00' ) {
 				return '';
 			} else {
@@ -183,11 +217,9 @@ class UserProfile {
 	 * Currently unused, I think that this might've been used in some older
 	 * ArmchairGM code, but this looks useful enough to be kept around.
 	 *
-	 * @return int
+	 * @return float
 	 */
 	public function getProfileComplete() {
-		global $wgUser;
-
 		$complete_count = 0;
 
 		// Check all profile fields
@@ -201,7 +233,7 @@ class UserProfile {
 
 		// Check if the user has a non-default avatar
 		$this->profile_fields_count++;
-		$avatar = new wAvatar( $wgUser->getId(), 'l' );
+		$avatar = new wAvatar( $this->user->getId(), 'l' );
 		if ( !$avatar->isDefault() ) {
 			$complete_count++;
 		}
@@ -209,7 +241,7 @@ class UserProfile {
 		return round( $complete_count / $this->profile_fields_count * 100 );
 	}
 
-	static function getEditProfileNav( $current_nav ) {
+	public static function getEditProfileNav( $current_nav ) {
 		$lines = explode( "\n", wfMessage( 'update_profile_nav' )->inContentLanguage()->text() );
 		$output = '<div class="profile-tab-bar">';
 		$linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
@@ -225,7 +257,7 @@ class UserProfile {
 				// Maybe it's the name of a system message? (bug #30030)
 				$msgObj = wfMessage( $line[1] );
 				if ( !$msgObj->isDisabled() ) {
-					$link_text = $msgObj->parse();
+					$link_text = $msgObj->text();
 				}
 
 				$output .= '<div class="profile-tab' . ( ( $current_nav == $link_text ) ? '-on' : '' ) . '">';

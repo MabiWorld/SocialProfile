@@ -7,13 +7,13 @@
  * @file
  * @date 14 August 2015
  */
-/* global ActiveXObject, mediaWiki */
-( function ( mw, $ ) {
+/* global ActiveXObject */
+( function () {
 	'use strict';
 
 	/**
 	 * @see http://stackoverflow.com/questions/998245/how-can-i-detect-if-flash-is-installed-and-if-not-display-a-hidden-div-that-inf/20095467#20095467
-	 * @return {Boolean}
+	 * @return {boolean}
 	 */
 	window.isFlashSupported = function () {
 		var hasFlash = false;
@@ -25,14 +25,13 @@
 		} catch ( e ) {
 			if (
 				navigator.mimeTypes &&
-				navigator.mimeTypes['application/x-shockwave-flash'] !== undefined &&
-				navigator.mimeTypes['application/x-shockwave-flash'].enabledPlugin
-			)
-			{
+				navigator.mimeTypes[ 'application/x-shockwave-flash' ] !== undefined &&
+				navigator.mimeTypes[ 'application/x-shockwave-flash' ].enabledPlugin
+			) {
 				hasFlash = true;
 			}
 		}
 		return hasFlash;
 	};
 
-} ( mediaWiki, jQuery ) );
+}() );

@@ -42,7 +42,7 @@ $wgUserProfileThresholds = [
  * quiz-answered // [[mw:Extension:QuizGame]] answered quizzes in total
  * quiz-correct // [[mw:Extension:QuizGame]] correctly answered quizzes
  * quiz-points // [[mw:Extension:QuizGame]] points in total
-*/
+ */
 ];
 
 // Default setup for displaying sections
@@ -67,11 +67,13 @@ $wgUploadAvatarInRecentChanges = false; // Same as above, but for avatar uploadi
 
 $wgAvailableRights[] = 'avatarremove';
 $wgAvailableRights[] = 'editothersprofiles';
+$wgAvailableRights[] = 'editothersprofiles-private';
 $wgAvailableRights[] = 'populate-user-profiles';
 $wgAvailableRights[] = 'updateownprofile';
 $wgGroupPermissions['sysop']['avatarremove'] = true;
 $wgGroupPermissions['*']['updateownprofile'] = true;
 $wgGroupPermissions['staff']['editothersprofiles'] = true;
+$wgGroupPermissions['staff']['editothersprofiles-private'] = true;
 $wgGroupPermissions['staff']['populate-user-profiles'] = true;
 
 // ResourceLoader support for MediaWiki 1.17+
@@ -92,7 +94,7 @@ $wgResourceModules['ext.socialprofile.userprofile.js'] = [
 // Modules for Special:EditProfile/Special:UpdateProfile
 $wgResourceModules['ext.userProfile.updateProfile'] = [
 	'scripts' => 'resources/js/UpdateProfile.js',
-	'dependencies' => [ 'mediawiki.api', 'mediawiki.util', 'jquery.ui.datepicker' ],
+	'dependencies' => [ 'mediawiki.api', 'mediawiki.util', 'jquery.ui' ],
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'SocialProfile/UserProfile'
 ];
@@ -148,6 +150,7 @@ $wgLogHeaders['avatar']          = 'avatarlogpagetext';
 $wgLogActions['avatar/avatar'] = 'avatarlogentry';
 
 $wgHooks['ArticleFromTitle'][] = 'UserProfileHooks::onArticleFromTitle';
+$wgHooks['TitleIsAlwaysKnown'][] = 'UserProfileHooks::onTitleIsAlwaysKnown';
 $wgHooks['OutputPageBodyAttributes'][] = 'UserProfileHooks::onOutputPageBodyAttributes';
 $wgHooks['ParserFirstCallInit'][] = 'UserProfileHooks::onParserFirstCallInit';
 $wgHooks['DifferenceEngineShowDiff'][] = 'UserProfileHooks::onDifferenceEngineShowDiff';

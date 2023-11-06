@@ -19,19 +19,21 @@ $wgHooks['ParserFirstCallInit'][] = 'wfRegisterTopUsersTag';
  * Register the new <topusers /> parser hook with the Parser.
  *
  * @param Parser $parser
- * @return bool true
  */
-function wfRegisterTopUsersTag( &$parser ) {
+function wfRegisterTopUsersTag( Parser $parser ) {
 	$parser->setHook( 'topusers', 'getTopUsersForTag' );
-	return true;
 }
 
 /**
  * Get the given amount of top users for the given timeframe.
  *
+ * @param string|null $input
+ * @param array $args
+ * @param Parser $parser
+ *
  * @return string HTML
  */
-function getTopUsersForTag( $input, $args, $parser ) {
+function getTopUsersForTag( $input, array $args, $parser ) {
 	// Don't allow showing OVER 9000...I mean, over 50 users, duh.
 	// Performance and all that stuff.
 	if (
@@ -58,14 +60,17 @@ function getTopUsersForTag( $input, $args, $parser ) {
 
 	$linkRenderer = MediaWiki\MediaWikiServices::getInstance()->getLinkRenderer();
 	foreach ( $fans as $fan ) {
-		$avatar = new wAvatar( $fan['user_id'], 'm' );
-		$user = Title::makeTitle( NS_USER, $fan['user_name'] );
+		$user = User::newFromActorId( $fan['actor'] );
+		if ( !$user ) {
+			continue;
+		}
 
+		$avatar = new wAvatar( $user->getId(), 'm' );
 		$userLink = $linkRenderer->makeLink(
-			$user,
-			$fan['user_name']
+			$user->getUserPage(),
+			$user->getName()
 		);
-		$safeUserURL = htmlspecialchars( $user->getFullURL() );
+		$safeUserURL = htmlspecialchars( $user->getUserPage()->getFullURL() );
 		$topfans .= "<div class=\"top-fan\">
 				<span class=\"top-fan-number\">{$x}.</span>
 				<a href=\"{$safeUserURL}\">{$avatar->getAvatarURL()}</a>

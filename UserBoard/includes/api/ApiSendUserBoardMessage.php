@@ -8,33 +8,31 @@ class ApiSendUserBoardMessage extends ApiBase {
 
 		$user_name = $main->getVal( 'username' );
 		$message = $main->getVal( 'message' );
-		$message_type = $main->getVal( 'type' ) || 0;
+		$message_type = (int)$main->getVal( 'type', (string)UserBoard::MESSAGE_PUBLIC );
 
 		$user = $this->getUser();
 		$readOnlyMode = MediaWikiServices::getInstance()->getReadOnlyMode();
 
 		// Don't allow blocked users to send messages and also don't allow message
 		// sending when the database is locked for some reason
-		if ( $user->isBlocked() || $readOnlyMode->isReadOnly() ) {
+		if ( $user->getBlock() || $readOnlyMode->isReadOnly() ) {
 			$this->getResult()->addValue( null, 'result', 'You cannot send messages.' );
 			return true;
 		}
 
 		$user_name = stripslashes( $user_name );
 		$user_name = urldecode( $user_name );
-		$user_id_to = User::idFromName( $user_name );
-		$b = new UserBoard();
+		$recipient = User::newFromName( $user_name );
+		$b = new UserBoard( $user );
 
 		$m = $b->sendBoardMessage(
-			$user->getId(),
-			$user->getName(),
-			$user_id_to,
-			$user_name,
+			$user,
+			$recipient,
 			urldecode( $message ),
 			$message_type
 		);
 
-		$this->getResult()->addValue( null, 'result', $b->displayMessages( $user_id_to, 0, 1 ) );
+		$this->getResult()->addValue( null, 'result', $b->displayMessages( $recipient, 0, 1 ) );
 
 		return true;
 	}

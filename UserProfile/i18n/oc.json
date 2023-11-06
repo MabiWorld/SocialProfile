@@ -1,7 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
-			"Cedric31"
+			"Cedric31",
+			"Guilhelma",
+			"Jack Phoenix"
 		]
 	},
 	"populateuserprofiles": "Completar los perfils d'utilizaire",
@@ -23,14 +25,14 @@
 	"user-send-message": "Mandar un messatge",
 	"user-send-gift": "Mandar un present",
 	"user-contributions": "Contribucions",
-	"user-stats-edits": "{{PLURAL:$1|Edicion|Edicions}}",
-	"user-stats-votes": "{{PLURAL:$1|Vòt|Vòts}}",
-	"user-stats-comments": "{{PLURAL:$1|Comentari|Comentaris}}",
-	"user-stats-recruits": "{{PLURAL:$1|Recrut|Recruts}}",
-	"user-stats-poll-votes": "{{PLURAL:$1|Vòt|Vòts}} a las eleccions",
-	"user-stats-picture-game-votes": "{{PLURAL:$1|Vòt|Vòts}} pels imatges de jòcs",
-	"user-stats-quiz-points": "{{PLURAL:$1|Punt|Punts}} al Quiz",
-	"user-stats-pick-points": "{{PLURAL:$1|Punt|Punts}} trobats",
+	"user-stats-edits": "Edicions",
+	"user-stats-votes": "Vòts",
+	"user-stats-comments": "Comentaris",
+	"user-stats-recruits": "Recruts",
+	"user-stats-poll-votes": "Vòts a las eleccions",
+	"user-stats-picture-game-votes": "Vòts pels imatges de jòcs",
+	"user-stats-quiz-points": "Punts al Quiz",
+	"user-stats-pick-points": "Punts trobats",
 	"other-info-title": "Autras entresenhas",
 	"user-friends-title": "Amics",
 	"user-foes-title": "Enemics",
@@ -76,8 +78,6 @@
 	"user-recent-activity-user-message": "A mandat un messatge a",
 	"user-recent-activity-network-update": "A mandat una pensada",
 	"user-recent-system-gift": "A recebut una recompensa",
-	"user-profile-update-notloggedin-title": "Podètz modificar vòstre perfil sens vos èsser enregistrat dins una sesilha",
-	"user-profile-update-notloggedin-text": "Pòt pas editar vòstre perfil sens èsser en sesilha. Clicatz [[Special:UserLogin|aicí]] per vos metre en sesilha o alara [[Special:UserLogin/signup|lai]] per vos enregistrar.",
 	"user-profile-update-saved": "Vòstre perfil es estat enregistrat",
 	"user-profile-update-log-section": "seccion cambiada",
 	"user-profile-default-country": "Estats Units d'America",
@@ -127,13 +127,6 @@
 	"user-profile-tidbits-worstmoment": "Vòstres piègers moments d'espòrts",
 	"user-profile-tidbits-favathlete": "Atlèta preferit e perque",
 	"user-profile-tidbits-leastfavathlete": "L’atlèta que vos agrada mens e perque",
-	"user-profile-sports-sport": "Espòrt",
-	"user-profile-sports-title": "Editatz vòstres espòrts favorits e vòstras equipas preferidas",
-	"user-profile-sports-notloggedintitle": "Op !",
-	"user-profile-sports-notloggedintext": "Vos cal èsser en sesilha per editar vòstre perfil.",
-	"user-profile-sports-teamremoved": "Vòstra equipa es estada levada.",
-	"user-profile-sports-teamsaved": "Vòstras equipas son estadas salvadas",
-	"user-profile-sports-addmore": "Apondre mai d'espòrts o d'equipas esportivas",
 	"uploadavatar": "Importar vòstres imatges",
 	"user-profile-picture-yourpicture": "Vòstre imatge",
 	"user-profile-picture-yourpicturestext": "Vaquí, çaijós, los imatges qu'apareisseràn dins vòstre perfil, paginas en ret, e dins vòstres comentaris.",
@@ -154,7 +147,7 @@
 	"user-wiki-link": "Pagina d'utilizaire del wiki",
 	"user-type-toggle-old": "Utilizar la pagina d'utilizaire del wiki",
 	"user-type-toggle-new": "Utilizar la pagina d'utilizaire en societat",
-	"user-board-login-message": "Vos cal èsser <a href=\"$1\">en sesilha</a> per mandar de messatges als autres utilizaires",
+	"user-board-login-message": "Vos cal èsser [[Special:UserLogin|en sesilha]] per mandar de messatges als autres utilizaires",
 	"removeavatar": "Levar l’avatar",
 	"givegift": "Balhar un present",
 	"viewgifts": "Veire los presents",
@@ -169,5 +162,6 @@
 	"avatarlogpagetext": "Vaquí lo jornal dels impòrts dels avatars",
 	"user-profile-picture-log-entry": "a importat un avatar novèl",
 	"user-profile-picture-log-delete-entry": "a suprimit l’avatar de $1",
-	"right-avatarremove": "Levar d'avatars d'utilizaires"
+	"right-avatarremove": "Levar d'avatars d'utilizaires",
+	"random-users-avatars-title": "Fasètz coneissença amb la comunautat"
 }

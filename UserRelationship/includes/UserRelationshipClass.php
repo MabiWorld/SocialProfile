@@ -1,23 +1,35 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Functions for managing relationship data
  */
 class UserRelationship {
+	/** @var User */
+	public $user;
+	/** @var int */
 	public $user_id;
+	/** @var string */
 	public $user_name;
 
+	/**
+	 * @param User|string $username User object (preferred) or user name (legacy b/c)
+	 */
 	public function __construct( $username ) {
-		$title1 = Title::newFromDBkey( $username );
-		$this->user_name = $title1->getText();
-		$this->user_id = User::idFromName( $this->user_name );
+		if ( $username instanceof User ) {
+			$this->user = $username;
+		} else {
+			$this->user = User::newFromName( $username );
+		}
+		$this->user_name = $this->user->getName();
+		$this->user_id = $this->user->getId();
 	}
 
 	/**
 	 * Add a relationship request to the database.
 	 *
-	 * @param string $user_to User name of the
-	 * recipient of the relationship request
+	 * @param User $userTo Recipient of the relationship request
 	 * @param int $type
 	 * - 1 for friend request
 	 * - 2 (or anything else than 1) for foe request
@@ -27,30 +39,26 @@ class UserRelationship {
 	 * @return int ID of the new relationship request
 	 */
 	public function addRelationshipRequest( $userTo, $type, $message, $email = true ) {
-		global $wgMemc;
-
-		$userIdTo = User::idFromName( $userTo );
 		$dbw = wfGetDB( DB_MASTER );
 
 		$dbw->insert(
 			'user_relationship_request',
 			[
-				'ur_user_id_from' => $this->user_id,
-				'ur_user_name_from' => $this->user_name,
-				'ur_user_id_to' => $userIdTo,
-				'ur_user_name_to' => $userTo,
+				'ur_actor_from' => $this->user->getActorId(),
+				'ur_actor_to' => $userTo->getActorId(),
 				'ur_type' => $type,
 				'ur_message' => $message,
-				'ur_date' => date( 'Y-m-d H:i:s' )
+				'ur_date' => $dbw->timestamp( date( 'Y-m-d H:i:s' ) )
 			], __METHOD__
 		);
 		$requestId = $dbw->insertId();
 
-		$requestCount = new RelationshipRequestCount( $wgMemc, $userIdTo );
-		$requestCount->setType( $type )->increase();
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$requestCount = new RelationshipRequestCount( $cache, $userTo );
+		$requestCount->setType( $type )->clear();
 
 		if ( $email ) {
-			$this->sendRelationshipRequestEmail( $userIdTo, $this->user_name, $type );
+			$this->sendRelationshipRequestEmail( $userTo, $type );
 		}
 
 		if ( ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ) {
@@ -61,7 +69,7 @@ class UserRelationship {
 				'agent' => $userFrom,
 				'title' => $userFrom->getUserPage(),
 				'extra' => [
-					'target' => $userIdTo,
+					'target' => $userTo->getId(),
 					'from' => $this->user_id,
 					'rel_type' => $type,
 					'message' => $message
@@ -76,26 +84,28 @@ class UserRelationship {
 	 * Send e-mail about a new relationship request to the user whose user ID
 	 * is $userIdTo if they have opted in for these notification e-mails.
 	 *
-	 * @param int $userIdTo User ID of the recipient
-	 * @param string $userFrom Name of the user who requested the relationship
+	 * @param User $userTo Recipient User object
 	 * @param int $type
 	 * - 1 for friend request
 	 * - 2 (or anything else than 1) for foe request
 	 */
-	public function sendRelationshipRequestEmail( $userIdTo, $userFrom, $type ) {
-		$user = User::newFromId( $userIdTo );
-		$user->loadFromDatabase();
+	public function sendRelationshipRequestEmail( $userTo, $type ) {
+		$userTo->load();
 
-		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
-		if ( $user->getEmail() && $wantsEmail ) {
+		$userOptionsLookup = MediaWikiServices::getInstance()->getUserOptionsLookup();
+		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ?
+			$userOptionsLookup->getBoolOption( $userTo, 'echo-subscriptions-email-social-rel' ) :
+			$userOptionsLookup->getIntOption( $userTo, 'notifyfriendrequest', 1 );
+		if ( $userTo->getEmail() && $wantsEmail ) {
 			$requestLink = SpecialPage::getTitleFor( 'ViewRelationshipRequests' );
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
-			if ( trim( $user->getRealName() ) ) {
-				$name = $user->getRealName();
+			if ( trim( $userTo->getRealName() ) ) {
+				$name = $userTo->getRealName();
 			} else {
-				$name = $user->getName();
+				$name = $userTo->getName();
 			}
+			$userFrom = $this->user->getName();
 
 			if ( $type == 1 ) {
 				$subject = wfMessage( 'friend_request_subject', $userFrom )->text();
@@ -127,7 +137,7 @@ class UserRelationship {
 				];
 			}
 
-			$user->sendMail( $subject, $body );
+			$userTo->sendMail( $subject, $body );
 		}
 	}
 
@@ -135,19 +145,20 @@ class UserRelationship {
 	 * Send an e-mail to the user whose user ID is $userIdTo about a new user
 	 * relationship.
 	 *
-	 * @param int $userIdTo User ID of the recipient of the e-mail
-	 * @param string $userFrom Name of the user who removed the relationship
+	 * @param User $user The recipient of the e-mail
 	 * @param int $type
 	 * - 1 for friend
 	 * - 2 (or anything else but 1) for foe
 	 */
-	public function sendRelationshipAcceptEmail( $userIdTo, $userFrom, $type ) {
-		$user = User::newFromId( $userIdTo );
-		$user->loadFromDatabase();
+	public function sendRelationshipAcceptEmail( $user, $type ) {
+		$user->load();
 
-		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
+		$userOptionsLookup = MediaWikiServices::getInstance()->getUserOptionsLookup();
+		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ?
+			$userOptionsLookup->getBoolOption( $user, 'echo-subscriptions-email-social-rel' ) :
+			$userOptionsLookup->getIntOption( $user, 'notifyfriendrequest', 1 );
 		if ( $user->getEmail() && $wantsEmail ) {
-			$userLink = Title::makeTitle( NS_USER, $userFrom );
+			$userFrom = $this->user;
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
 			if ( trim( $user->getRealName() ) ) {
@@ -157,30 +168,34 @@ class UserRelationship {
 			}
 
 			if ( $type == 1 ) {
-				$subject = wfMessage( 'friend_accept_subject', $userFrom )->text();
+				$subject = wfMessage( 'friend_accept_subject', $userFrom->getName() )->text();
 				$body = [
-					'html' => wfMessage( 'friend_accept_body_html',
+					'html' => wfMessage(
+						'friend_accept_body_html',
 						$name,
-						$userFrom
+						$userFrom->getName()
 					)->parse(),
-					'text' => wfMessage( 'friend_accept_body',
+					'text' => wfMessage(
+						'friend_accept_body',
 						$name,
-						$userFrom,
-						$userLink->getFullURL(),
+						$userFrom->getName(),
+						$userFrom->getUserPage()->getFullURL(),
 						$updateProfileLink->getFullURL()
 					)->text()
 				];
 			} else {
 				$subject = wfMessage( 'foe_accept_subject', $userFrom )->text();
 				$body = [
-					'html' => wfMessage( 'foe_accept_body_html',
+					'html' => wfMessage(
+						'foe_accept_body_html',
 						$name,
-						$userFrom
+						$userFrom->getName()
 					)->parse(),
-					'text' => wfMessage( 'foe_accept_body',
+					'text' => wfMessage(
+						'foe_accept_body',
 						$name,
-						$userFrom,
-						$userLink->getFullURL(),
+						$userFrom->getName(),
+						$userFrom->getUserPage()->getFullURL(),
 						$updateProfileLink->getFullURL()
 					)->text()
 				];
@@ -191,22 +206,22 @@ class UserRelationship {
 	}
 
 	/**
-	 * Send an e-mail to the user whose user ID is $userIdTo about a removed
-	 * relationship.
+	 * Send an e-mail to the given user about a removed relationship.
 	 *
-	 * @param string $userIdTo User ID of the recipient of the e-mail
-	 * @param string $userFrom Name of the user who removed the relationship
+	 * @param User $user The recipient of the e-mail
 	 * @param int $type
 	 * - 1 for friend
 	 * - 2 (or anything else but 1) for foe
 	 */
-	public function sendRelationshipRemoveEmail( $userIdTo, $userFrom, $type ) {
-		$user = User::newFromId( $userIdTo );
-		$user->loadFromDatabase();
+	public function sendRelationshipRemoveEmail( $user, $type ) {
+		$user->load();
 
-		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ? $user->getBoolOption( 'echo-subscriptions-email-social-rel' ) : $user->getIntOption( 'notifyfriendrequest', 1 );
+		$userOptionsLookup = MediaWikiServices::getInstance()->getUserOptionsLookup();
+		$wantsEmail = ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ?
+			$userOptionsLookup->getBoolOption( $user, 'echo-subscriptions-email-social-rel' ) :
+			$userOptionsLookup->getIntOption( $user, 'notifyfriendrequest', 1 );
 		if ( $user->isEmailConfirmed() && $wantsEmail ) {
-			$userLink = Title::makeTitle( NS_USER, $userFrom );
+			$userFrom = $this->user;
 			$updateProfileLink = SpecialPage::getTitleFor( 'UpdateProfile' );
 
 			if ( trim( $user->getRealName() ) ) {
@@ -216,30 +231,34 @@ class UserRelationship {
 			}
 
 			if ( $type == 1 ) {
-				$subject = wfMessage( 'friend_removed_subject', $userFrom )->text();
+				$subject = wfMessage( 'friend_removed_subject', $userFrom->getName() )->text();
 				$body = [
-					'html' => wfMessage( 'friend_removed_body_html',
+					'html' => wfMessage(
+						'friend_removed_body_html',
 						$name,
-						$userFrom
+						$userFrom->getName()
 					)->parse(),
-					'text' => wfMessage( 'friend_removed_body',
+					'text' => wfMessage(
+						'friend_removed_body',
 						$name,
-						$userFrom,
-						$userLink->getFullURL(),
+						$userFrom->getName(),
+						$userFrom->getUserPage()->getFullURL(),
 						$updateProfileLink->getFullURL()
 					)->text()
 				];
 			} else {
-				$subject = wfMessage( 'foe_removed_subject', $userFrom )->text();
+				$subject = wfMessage( 'foe_removed_subject', $userFrom->getName() )->text();
 				$body = [
-					'html' => wfMessage( 'foe_removed_body_html',
+					'html' => wfMessage(
+						'foe_removed_body_html',
 						$name,
-						$userFrom
+						$userFrom->getName()
 					)->parse(),
-					'text' => wfMessage( 'foe_removed_body',
+					'text' => wfMessage(
+						'foe_removed_body',
 						$name,
-						$userFrom,
-						$userLink->getFullURL(),
+						$userFrom->getName(),
+						$userFrom->getUserPage()->getFullURL(),
 						$updateProfileLink->getFullURL()
 					)->text()
 				];
@@ -257,34 +276,32 @@ class UserRelationship {
 	 * @return bool True if successful, otherwise false
 	 */
 	public function addRelationship( $relationshipRequestId, $email = true ) {
-		global $wgMemc;
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
 		$dbw = wfGetDB( DB_MASTER );
 		$s = $dbw->selectRow(
 			'user_relationship_request',
-			[ 'ur_user_id_from', 'ur_user_name_from', 'ur_type' ],
+			[ 'ur_actor_from', 'ur_type' ],
 			[ 'ur_id' => $relationshipRequestId ],
 			__METHOD__
 		);
 
-		if ( $s == true ) {
-			$ur_user_id_from = $s->ur_user_id_from;
-			$ur_user_name_from = $s->ur_user_name_from;
+		if ( $s ) {
+			$userFrom = User::newFromActorId( $s->ur_actor_from );
 			$ur_type = $s->ur_type;
 
-			if ( self::getUserRelationshipByID( $this->user_id, $ur_user_id_from ) > 0 ) {
-				return '';
+			if ( self::getUserRelationshipByID( $this->user, $userFrom ) > 0 ) {
+				// Nothing to do if this relationship already exists.
+				return false;
 			}
 
 			$dbw->insert(
 				'user_relationship',
 				[
-					'r_user_id' => $this->user_id,
-					'r_user_name' => $this->user_name,
-					'r_user_id_relation' => $ur_user_id_from,
-					'r_user_name_relation' => $ur_user_name_from,
+					'r_actor' => $this->user->getActorId(),
+					'r_actor_relation' => $userFrom->getActorId(),
 					'r_type' => $ur_type,
-					'r_date' => date( 'Y-m-d H:i:s' )
+					'r_date' => $dbw->timestamp( date( 'Y-m-d H:i:s' ) )
 				],
 				__METHOD__
 			);
@@ -292,24 +309,22 @@ class UserRelationship {
 			$dbw->insert(
 				'user_relationship',
 				[
-					'r_user_id' => $ur_user_id_from,
-					'r_user_name' => $ur_user_name_from,
-					'r_user_id_relation' => $this->user_id,
-					'r_user_name_relation' => $this->user_name,
+					'r_actor' => $userFrom->getActorId(),
+					'r_actor_relation' => $this->user->getActorId(),
 					'r_type' => $ur_type,
-					'r_date' => date( 'Y-m-d H:i:s' )
+					'r_date' => $dbw->timestamp( date( 'Y-m-d H:i:s' ) )
 				],
 				__METHOD__
 			);
 
-			$stats = new UserStatsTrack( $this->user_id, $this->user_name );
+			$stats = new UserStatsTrack( $this->user->getActorId() );
 			if ( $ur_type == 1 ) {
 				$stats->incStatField( 'friend' );
 			} else {
 				$stats->incStatField( 'foe' );
 			}
 
-			$stats = new UserStatsTrack( $ur_user_id_from, $ur_user_name_from );
+			$stats = new UserStatsTrack( $userFrom->getActorId() );
 			if ( $ur_type == 1 ) {
 				$stats->incStatField( 'friend' );
 			} else {
@@ -317,22 +332,20 @@ class UserRelationship {
 			}
 
 			if ( $email ) {
-				$this->sendRelationshipAcceptEmail( $ur_user_id_from, $this->user_name, $ur_type );
+				$this->sendRelationshipAcceptEmail( $userFrom, $ur_type );
 			}
 
 			// Purge caches
-			$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$this->user_id}-{$ur_type}" ) );
-			$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$ur_user_id_from}-{$ur_type}" ) );
+			$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$this->user->getActorId()}-{$ur_type}" ) );
+			$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$userFrom->getActorId()}-{$ur_type}" ) );
 
 			if ( ExtensionRegistry::getInstance()->isLoaded( 'Echo' ) ) {
-				$userFrom = User::newFromId( $this->user_id );
-
 				EchoEvent::create( [
 					'type' => 'social-rel-accept',
-					'agent' => $userFrom,
-					'title' => $userFrom->getUserPage(),
+					'agent' => $this->user,
+					'title' => $this->user->getUserPage(),
 					'extra' => [
-						'target' => $ur_user_id_from,
+						'target' => $userFrom->getId(),
 						'from' => $this->user_id,
 						'rel_type' => $ur_type
 					]
@@ -341,9 +354,9 @@ class UserRelationship {
 
 			// Hooks (for Semantic SocialProfile mostly)
 			if ( $ur_type == 1 ) {
-				Hooks::run( 'NewFriendAccepted', [ $ur_user_name_from, $this->user_name ] );
+				MediaWikiServices::getInstance()->getHookContainer()->run( 'NewFriendAccepted', [ $userFrom, $this->user ] );
 			} else {
-				Hooks::run( 'NewFoeAccepted', [ $ur_user_name_from, $this->user_name ] );
+				MediaWikiServices::getInstance()->getHookContainer()->run( 'NewFoeAccepted', [ $userFrom, $this->user ] );
 			}
 
 			return true;
@@ -355,45 +368,48 @@ class UserRelationship {
 	/**
 	 * Remove a relationship between two users and clear caches afterwards.
 	 *
-	 * @param int $user1 User ID of the first user
-	 * @param int $user2 User ID of the second user
+	 * @param User $user1 User who is removing a friend/foe
+	 * @param User $user2 The friend/foe being removed
 	 */
-	public function removeRelationshipByUserID( $user1, $user2 ) {
-		global $wgUser, $wgMemc;
+	public function removeRelationship( $user1, $user2 ) {
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
-		if ( $user1 != $wgUser->getId() && $user2 != $wgUser->getId() ) {
-			return false; // only logged in user should be able to delete
+		if (
+			$user1->getActorId() != $this->user->getActorId() &&
+			$user2->getActorId() != $this->user->getActorId()
+		) {
+			return; // only logged in user should be able to delete
 		}
 
 		// must delete record for each user involved in relationship
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->delete(
 			'user_relationship',
-			[ 'r_user_id' => $user1, 'r_user_id_relation' => $user2 ],
+			[ 'r_actor' => $user1->getActorId(), 'r_actor_relation' => $user2->getActorId() ],
 			__METHOD__
 		);
 		$dbw->delete(
 			'user_relationship',
-			[ 'r_user_id' => $user2, 'r_user_id_relation' => $user1 ],
+			[ 'r_actor' => $user2->getActorId(), 'r_actor_relation' => $user1->getActorId() ],
 			__METHOD__
 		);
 
-		$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$user1}-1" ) );
-		$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$user2}-1" ) );
+		$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$user1->getActorId()}-1" ) );
+		$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$user2->getActorId()}-1" ) );
 
-		$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$user1}-2" ) );
-		$wgMemc->delete( $wgMemc->makeKey( 'relationship', 'profile', "{$user2}-2" ) );
+		$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$user1->getActorId()}-2" ) );
+		$cache->delete( $cache->makeKey( 'relationship', 'profile', 'actor_id', "{$user2->getActorId()}-2" ) );
 
 		// RelationshipRemovedByUserID hook
-		Hooks::run( 'RelationshipRemovedByUserID', [ $user1, $user2 ] );
+		MediaWikiServices::getInstance()->getHookContainer()->run( 'RelationshipRemovedByUserID', [ $user1, $user2 ] );
 
 		// Update social statistics for both users
-		$stats = new UserStatsTrack( $user1, '' );
+		$stats = new UserStatsTrack( $user1->getActorId() );
 		$stats->updateRelationshipCount( 1 );
 		$stats->updateRelationshipCount( 2 );
 		$stats->clearCache();
 
-		$stats = new UserStatsTrack( $user2, '' );
+		$stats = new UserStatsTrack( $user2->getActorId() );
 		$stats->updateRelationshipCount( 1 );
 		$stats->updateRelationshipCount( 2 );
 		$stats->clearCache();
@@ -405,11 +421,10 @@ class UserRelationship {
 	 * @param int $id Relationship request ID number
 	 */
 	public function deleteRequest( $id ) {
-		global $wgMemc;
-
 		$request = $this->getRequest( $id );
-		$requestCount = new RelationshipRequestCount( $wgMemc, $this->user_id );
-		$requestCount->setType( $request[0]['rel_type'] )->decrease();
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$requestCount = new RelationshipRequestCount( $cache, $this->user );
+		$requestCount->setType( $request[0]['rel_type'] )->clear();
 
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->delete(
@@ -421,7 +436,7 @@ class UserRelationship {
 
 	/**
 	 * @param int $relationshipRequestId Relationship request ID number
-	 * @param $status
+	 * @param int $status
 	 */
 	public function updateRelationshipRequestStatus( $relationshipRequestId, $status ) {
 		$dbw = wfGetDB( DB_MASTER );
@@ -444,12 +459,12 @@ class UserRelationship {
 		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship_request',
-			[ 'ur_user_id_to' ],
+			[ 'ur_actor_to' ],
 			[ 'ur_id' => $relationshipRequestId ],
 			__METHOD__
 		);
 		if ( $s !== false ) {
-			if ( $this->user_id == $s->ur_user_id_to ) {
+			if ( $this->user->getActorId() == $s->ur_actor_to ) {
 				return true;
 			}
 		}
@@ -457,16 +472,16 @@ class UserRelationship {
 	}
 
 	/**
-	 * @param int $user1
-	 * @param int $user2
+	 * @param User $user1
+	 * @param User $user2
 	 * @return int|bool false
 	 */
-	static function getUserRelationshipByID( $user1, $user2 ) {
+	public static function getUserRelationshipByID( $user1, $user2 ) {
 		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship',
 			[ 'r_type' ],
-			[ 'r_user_id' => $user1, 'r_user_id_relation' => $user2 ],
+			[ 'r_actor' => $user1->getActorId(), 'r_actor_relation' => $user2->getActorId() ],
 			__METHOD__
 		);
 		if ( $s !== false ) {
@@ -477,18 +492,18 @@ class UserRelationship {
 	}
 
 	/**
-	 * @param int $user1 User ID of the recipient of the request
-	 * @param int $user2 User ID of the sender of the request
+	 * @param User $user1 The recipient of the request
+	 * @param User $user2 The sender of the request
 	 * @return bool
 	 */
-	static function userHasRequestByID( $user1, $user2 ) {
+	public static function userHasRequestByID( $user1, $user2 ) {
 		$dbr = wfGetDB( DB_REPLICA );
 		$s = $dbr->selectRow(
 			'user_relationship_request',
 			[ 'ur_type' ],
 			[
-				'ur_user_id_to' => $user1,
-				'ur_user_id_from' => $user2,
+				'ur_actor_to' => $user1->getActorId(),
+				'ur_actor_from' => $user2->getActorId(),
 				'ur_status' => 0
 			],
 			__METHOD__
@@ -511,14 +526,12 @@ class UserRelationship {
 		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select(
 			'user_relationship_request',
-			[
-				'ur_id', 'ur_user_id_from', 'ur_user_name_from', 'ur_type',
-				'ur_message', 'ur_date'
-			],
+			[ 'ur_id', 'ur_actor_from', 'ur_type', 'ur_message', 'ur_date' ],
 			[ 'ur_id' => $id ],
 			__METHOD__
 		);
 
+		$request = [];
 		foreach ( $res as $row ) {
 			if ( $row->ur_type == 1 ) {
 				$typeName = 'Friend';
@@ -529,9 +542,8 @@ class UserRelationship {
 				'id' => $row->ur_id,
 				'rel_type' => $row->ur_type,
 				'type' => $typeName,
-				'timestamp' => ( $row->ur_date ),
-				'user_id_from' => $row->ur_user_id_from,
-				'user_name_from' => $row->ur_user_name_from
+				'timestamp' => $row->ur_date,
+				'actor_from' => $row->ur_actor_from
 			];
 		}
 
@@ -539,30 +551,28 @@ class UserRelationship {
 	}
 
 	/**
-	 * Get the relationship IDs for the current user.
+	 * Get the relationship actor IDs for the current user.
 	 *
 	 * @param int $type
 	 * - 1 for friends
 	 * - 2 (or anything else but 1) for foes
-	 * @return array Array of relationship ID numbers
+	 * @return array Array of actor ID numbers
 	 */
 	public function getRelationshipIDs( $type ) {
 		$dbr = wfGetDB( DB_REPLICA );
 
 		$res = $dbr->select(
-			'user_relationship',
-			[
-				'r_id', 'r_user_id_relation',
-				'r_user_name_relation', 'r_date'
-			],
-			[ 'r_user_id' => $this->user_id, 'r_type' => $type ],
+			[ 'user_relationship', 'actor' ],
+			[ 'r_id', 'r_actor_relation', 'r_date' ],
+			[ 'r_actor' => $this->user->getActorId(), 'r_type' => $type ],
 			__METHOD__,
-			[ 'ORDER BY' => 'r_user_name_relation' ]
+			[ 'ORDER BY' => 'actor_name' ],
+			[ 'actor' => [ 'JOIN', 'r_actor_relation = actor_id' ] ]
 		);
 
 		$rel = [];
 		foreach ( $res as $row ) {
-			$rel[] = $row->r_user_id_relation;
+			$rel[] = $row->r_actor_relation;
 		}
 
 		return $rel;

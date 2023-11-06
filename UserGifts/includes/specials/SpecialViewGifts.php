@@ -7,6 +7,8 @@
  * @ingroup Extensions
  */
 
+use MediaWiki\MediaWikiServices;
+
 class ViewGifts extends SpecialPage {
 
 	public function __construct() {
@@ -28,7 +30,7 @@ class ViewGifts extends SpecialPage {
 	 * @return bool
 	 */
 	function isListed() {
-		return (bool)$this->getUser()->isLoggedIn();
+		return $this->getUser()->isRegistered();
 	}
 
 	/**
@@ -61,7 +63,7 @@ class ViewGifts extends SpecialPage {
 		if ( $currentUser->getId() == 0 && $user_name == '' ) {
 			$login = SpecialPage::getTitleFor( 'Userlogin' );
 			$out->redirect( htmlspecialchars( $login->getFullURL( 'returnto=Special:ViewGifts' ) ) );
-			return false;
+			return;
 		}
 
 		/**
@@ -70,7 +72,15 @@ class ViewGifts extends SpecialPage {
 		if ( !$user_name ) {
 			$user_name = $currentUser->getName();
 		}
-		$user_id = User::idFromName( $user_name );
+		if ( method_exists( MediaWikiServices::class, 'getUserIdentityLookup' ) ) {
+			// MW 1.36+
+			$userIdentity = MediaWikiServices::getInstance()->getUserIdentityLookup()
+				->getUserIdentityByName( $user_name );
+			$user_id = $userIdentity ? $userIdentity->getId() : 0;
+		} else {
+			// @phan-suppress-next-line PhanUndeclaredStaticMethod Removed in MW 1.41+
+			$user_id = User::idFromName( $user_name );
+		}
 		$user = Title::makeTitle( NS_USER, $user_name );
 
 		/**
@@ -78,8 +88,8 @@ class ViewGifts extends SpecialPage {
 		 */
 		if ( $user_id == 0 ) {
 			$out->setPageTitle( $this->msg( 'g-error-title' )->plain() );
-			$out->addHTML( htmlspecialchars( $this->msg( 'g-error-message-no-user' )->plain() ) );
-			return false;
+			$out->addHTML( $this->msg( 'g-error-message-no-user' )->escaped() );
+			return;
 		}
 
 		/**
@@ -94,7 +104,7 @@ class ViewGifts extends SpecialPage {
 		$rel = new UserGifts( $user_name );
 
 		$gifts = $rel->getUserGiftList( 0, $per_page, $page );
-		$total = $rel->getGiftCountByUsername( $user_name );
+		$total = $rel->getGiftCountByUsername();
 
 		/**
 		 * Show gift count for user
@@ -129,7 +139,7 @@ class ViewGifts extends SpecialPage {
 					$gift_name_display = $gift['gift_name'];
 				}
 
-				$user_from = Title::makeTitle( NS_USER, $gift['user_name_from'] );
+				$userFrom = User::newFromActorId( $gift['actor_from'] );
 				$userGiftIcon = new UserGiftIcon( $gift['gift_id'], 'l' );
 				$icon = $userGiftIcon->getIconHTML();
 
@@ -146,25 +156,27 @@ class ViewGifts extends SpecialPage {
 						$rel->clearUserGiftStatus( $gift['id'] );
 					}
 					$output .= '<span class="g-new">' .
-						htmlspecialchars( $this->msg( 'g-new' )->plain() ) .
+						$this->msg( 'g-new' )->escaped() .
 					'</span>';
 				}
 				$output .= '</div>';
 
 				$output .= '<div class="g-from">' .
-					// FIXME: Message with raw HTML
-					$this->msg( 'g-from', htmlspecialchars( $user_from->getFullURL() ), $gift['user_name_from'] )->text() .
+					$this->msg(
+						'g-from',
+						$userFrom->getName()
+					)->parse() .
 				'</div>
 					<div class="g-actions">
 						<a href="' . htmlspecialchars( $giveGiftLink->getFullURL( 'gift_id=' . $gift['gift_id'] ) ) . '">' .
-							htmlspecialchars( $this->msg( 'g-to-another' )->plain() ) .
+							$this->msg( 'g-to-another' )->escaped() .
 						'</a>';
 				if ( $rel->user_name == $currentUser->getName() ) {
 					$output .= '&#160;';
 					$output .= $this->msg( 'pipe-separator' )->escaped();
 					$output .= '&#160;';
 					$output .= '<a href="' . htmlspecialchars( $removeGiftLink->getFullURL( 'gift_id=' . $gift['id'] ) ) . '">' .
-						htmlspecialchars( $this->msg( 'g-remove-gift' )->plain() ) . '</a>';
+						$this->msg( 'g-remove-gift' )->escaped() . '</a>';
 				}
 				$output .= '</div>
 					<div class="visualClear"></div>';
@@ -189,13 +201,13 @@ class ViewGifts extends SpecialPage {
 			if ( $page > 1 ) {
 				$output .= $linkRenderer->makeLink(
 					$pageLink,
-					$this->msg( 'g-previous' )->plain(),
+					$this->msg( 'g-previous' )->text(),
 					[],
 					[
 						'user' => $user_name,
 						'page' => ( $page - 1 )
 					]
-				) . htmlspecialchars( $this->msg( 'word-separator' )->plain() );
+				) . $this->msg( 'word-separator' )->escaped();
 			}
 
 			if ( ( $total % $per_page ) != 0 ) {
@@ -214,21 +226,21 @@ class ViewGifts extends SpecialPage {
 				} else {
 					$output .= $linkRenderer->makeLink(
 						$pageLink,
-						$i,
+						(string)$i,
 						[],
 						[
 							'user' => $user_name,
 							'page' => $i
 						]
-					) . $this->msg( 'word-separator' )->plain();
+					) . $this->msg( 'word-separator' )->escaped();
 				}
 			}
 
 			if ( ( $total - ( $per_page * $page ) ) > 0 ) {
-				$output .= htmlspecialchars( $this->msg( 'word-separator' )->plain() ) .
+				$output .= $this->msg( 'word-separator' )->escaped() .
 					$linkRenderer->makeLink(
 						$pageLink,
-						$this->msg( 'g-next' )->plain(),
+						$this->msg( 'g-next' )->text(),
 						[],
 						[
 							'user' => $user_name,

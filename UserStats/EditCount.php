@@ -12,7 +12,7 @@ if ( !defined( 'MEDIAWIKI' ) ) {
  * define $wgUserLevels and require_once() this file in your wiki's
  * LocalSettings.php file.
  */
-$wgHooks['NewRevisionFromEditComplete'][] = 'incEditCount';
+$wgHooks['RevisionFromEditComplete'][] = 'incEditCount';
 $wgHooks['ArticleDelete'][] = 'removeDeletedEdits';
 $wgHooks['ArticleUndelete'][] = 'restoreDeletedEdits';
 
@@ -21,23 +21,31 @@ $wgHooks['ArticleUndelete'][] = 'restoreDeletedEdits';
  * listed in the $wgNamespacesForEditPoints array.
  *
  * @param WikiPage $wikiPage
- * @param Revision $revision
- * @param int $baseRevId
- * @return bool true
+ * @param MediaWiki\Revision\RevisionRecord $revision
+ * @param int $baseRevId Revision ID if the edit restores or repeats an
+ *   earlier revision (such as a rollback or a null revision), otherwise bool false
+ * @param MediaWiki\User\UserIdentity $user The user who performed the edit in question
  */
-function incEditCount( WikiPage $wikiPage, $revision, $baseRevId ) {
-	global $wgUser, $wgNamespacesForEditPoints;
+function incEditCount( WikiPage $wikiPage, $revision, $baseRevId, $user ) {
+	global $wgNamespacesForEditPoints;
 
 	// only keep tally for allowable namespaces
 	if (
 		!is_array( $wgNamespacesForEditPoints ) ||
 		in_array( $wikiPage->getTitle()->getNamespace(), $wgNamespacesForEditPoints )
 	) {
-		$stats = new UserStatsTrack( $wgUser->getId(), $wgUser->getName() );
+		if ( method_exists( $user, 'getActorId' ) ) {
+			// MediaWiki 1.35
+			// @phan-suppress-next-line PhanUndeclaredMethod Removed in MW 1.41
+			$actorId = $user->getActorId();
+		} else {
+			// MediaWiki 1.36+
+			$userObj = User::newFromName( $user->getName() );
+			$actorId = $userObj->getActorId();
+		}
+		$stats = new UserStatsTrack( $actorId );
 		$stats->incStatField( 'edit' );
 	}
-
-	return true;
 }
 
 /**
@@ -49,7 +57,7 @@ function incEditCount( WikiPage $wikiPage, $revision, $baseRevId ) {
  * @param string $reason
  * @return bool true
  */
-function removeDeletedEdits( &$article, &$user, &$reason ) {
+function removeDeletedEdits( WikiPage $article, $user, $reason ) {
 	global $wgNamespacesForEditPoints;
 
 	// only keep tally for allowable namespaces
@@ -58,15 +66,42 @@ function removeDeletedEdits( &$article, &$user, &$reason ) {
 		in_array( $article->getTitle()->getNamespace(), $wgNamespacesForEditPoints )
 	) {
 		$dbr = wfGetDB( DB_MASTER );
-		$res = $dbr->select(
-			'revision',
-			[ 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ],
-			[ 'rev_page' => $article->getID(), 'rev_user <> 0' ],
-			__METHOD__,
-			[ 'GROUP BY' => 'rev_user_text' ]
-		);
+
+		$MW139orEarlier = version_compare( MW_VERSION, '1.39', '<' );
+		if ( $MW139orEarlier ) {
+			$res = $dbr->select(
+				[ 'revision_actor_temp', 'revision', 'actor' ],
+				[ 'COUNT(*) AS the_count', 'revactor_actor' ],
+				[
+					'revactor_page' => $article->getID(),
+					'actor_user IS NOT NULL'
+				],
+				__FUNCTION__,
+				[ 'GROUP BY' => 'actor_name' ],
+				[
+					'actor' => [ 'JOIN', 'actor_id = revactor_actor' ],
+					'revision_actor_temp' => [ 'JOIN', 'revactor_rev = rev_id' ]
+				]
+			);
+		} else {
+			$res = $dbr->select(
+				[ 'revision', 'actor' ],
+				[ 'COUNT(*) AS the_count', 'rev_actor' ],
+				[
+					'rev_page' => $article->getID(),
+					'actor_user IS NOT NULL'
+				],
+				__FUNCTION__,
+				[ 'GROUP BY' => 'actor_name' ],
+				[
+					'actor' => [ 'JOIN', 'actor_id = rev_actor' ]
+				]
+			);
+		}
+
 		foreach ( $res as $row ) {
-			$stats = new UserStatsTrack( $row->rev_user, $row->rev_user_text );
+			$columnName = $MW139orEarlier ? 'revactor_actor' : 'rev_actor';
+			$stats = new UserStatsTrack( $row->$columnName );
 			$stats->decStatField( 'edit', $row->the_count );
 		}
 	}
@@ -83,7 +118,7 @@ function removeDeletedEdits( &$article, &$user, &$reason ) {
  * @param bool $new
  * @return bool true
  */
-function restoreDeletedEdits( &$title, $new ) {
+function restoreDeletedEdits( Title $title, $new ) {
 	global $wgNamespacesForEditPoints;
 
 	// only keep tally for allowable namespaces
@@ -92,15 +127,42 @@ function restoreDeletedEdits( &$title, $new ) {
 		in_array( $title->getNamespace(), $wgNamespacesForEditPoints )
 	) {
 		$dbr = wfGetDB( DB_MASTER );
-		$res = $dbr->select(
-			'revision',
-			[ 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ],
-			[ 'rev_page' => $title->getArticleID(), 'rev_user <> 0' ],
-			__METHOD__,
-			[ 'GROUP BY' => 'rev_user_text' ]
-		);
+
+		$MW139orEarlier = version_compare( MW_VERSION, '1.39', '<' );
+		if ( $MW139orEarlier ) {
+			$res = $dbr->select(
+				[ 'revision_actor_temp', 'revision', 'actor' ],
+				[ 'COUNT(*) AS the_count', 'revactor_actor' ],
+				[
+					'revactor_page' => $title->getArticleID(),
+					'actor_user IS NOT NULL'
+				],
+				__FUNCTION__,
+				[ 'GROUP BY' => 'actor_name' ],
+				[
+					'actor' => [ 'JOIN', 'actor_id = revactor_actor' ],
+					'revision_actor_temp' => [ 'JOIN', 'revactor_rev = rev_id' ]
+				]
+			);
+		} else {
+			$res = $dbr->select(
+				[ 'revision', 'actor' ],
+				[ 'COUNT(*) AS the_count', 'rev_actor' ],
+				[
+					'rev_page' => $title->getArticleID(),
+					'actor_user IS NOT NULL'
+				],
+				__FUNCTION__,
+				[ 'GROUP BY' => 'actor_name' ],
+				[
+					'actor' => [ 'JOIN', 'actor_id = rev_actor' ]
+				]
+			);
+		}
+
 		foreach ( $res as $row ) {
-			$stats = new UserStatsTrack( $row->rev_user, $row->rev_user_text );
+			$columnName = $MW139orEarlier ? 'revactor_actor' : 'rev_actor';
+			$stats = new UserStatsTrack( $row->$columnName );
 			$stats->incStatField( 'edit', $row->the_count );
 		}
 	}

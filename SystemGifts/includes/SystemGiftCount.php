@@ -4,36 +4,29 @@ use MediaWiki\Logger\LoggerFactory;
 
 /**
  * This object allows for increasing, decreasing, and getting
- * the amount of system gifts for a user based on their ID.
+ * the amount of system gifts for a given user.
  */
 class SystemGiftCount {
 	/**
-	 * @var BagOStuff $cache
+	 * @var WANObjectCache
 	 */
 	private $cache;
 
 	/**
-	 * @var int $userId
+	 * @var User
 	 */
-	private $userId;
+	private $user;
 
-	public function __construct( $cache, $userId ) {
+	public function __construct( $cache, $user ) {
 		$this->cache = $cache;
-		$this->userId = $userId;
+		$this->user = $user;
 	}
 
 	/**
-	 * Increase the amount of new system gifts for the user
+	 * Purge the cache of the amount of new system gifts for the user
 	 */
-	public function increase() {
-		$this->cache->incr( $this->makeKey() );
-	}
-
-	/**
-	 * Decrease the amount of new system gifts for the user
-	 */
-	public function decrease() {
-		$this->cache->decr( $this->makeKey() );
+	public function clear() {
+		$this->cache->delete( $this->makeKey() );
 	}
 
 	/**
@@ -58,20 +51,23 @@ class SystemGiftCount {
 	 * Get the amount of new system gifts for the user from memcached.
 	 * If successful, returns the amount of new system gifts.
 	 *
-	 * @return int Amount of new system gifts
+	 * @return int|false Amount of new system gifts
 	 */
 	private function getFromCache() {
 		$data = $this->cache->get( $this->makeKey() );
 
 		if ( $data != '' ) {
 			$logger = LoggerFactory::getInstance( 'SocialProfile' );
-			$logger->debug( "Got new award count of {data} for {user_id} from cache\n", [
+			$logger->debug( "Got new award count of {data} for {user_name} (ID: {user_id}, actor ID: {actor_id}) from cache\n", [
 				'data' => $data,
-				'user_id' => $this->userId
+				'user_name' => $this->user->getName(),
+				'user_id' => $this->user->getId(),
+				'actor_id' => $this->user->getActorId()
 			] );
 
-			return $data;
 		}
+
+		return $data;
 	}
 
 	/**
@@ -82,8 +78,11 @@ class SystemGiftCount {
 	 */
 	private function getFromDatabase() {
 		$logger = LoggerFactory::getInstance( 'SocialProfile' );
-		$logger->debug( "Got new award count for id {user_id} from DB\n", [
-			'user_id' => $this->userId
+		$actorId = $this->user->getActorId();
+		$logger->debug( "Got new award count for id {user_name} (ID: {user_id}, actor ID: {actor_id}) from DB\n", [
+			'user_name' => $this->user->getName(),
+			'user_id' => $this->user->getId(),
+			'actor_id' => $actorId
 		] );
 
 		$dbr = wfGetDB( DB_REPLICA );
@@ -92,7 +91,7 @@ class SystemGiftCount {
 			'user_system_gift',
 			[ 'COUNT(*) AS count' ],
 			[
-				'sg_user_id' => $this->userId,
+				'sg_actor' => $actorId,
 				'sg_status' => 1
 			],
 			__METHOD__
@@ -110,6 +109,6 @@ class SystemGiftCount {
 	 * @return string
 	 */
 	private function makeKey() {
-		return $this->cache->makeKey( 'system_gifts', 'new_count', $this->userId );
+		return $this->cache->makeKey( 'system_gifts', 'new_count', 'actor_id', $this->user->getActorId() );
 	}
 }

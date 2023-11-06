@@ -4,22 +4,22 @@
  */
 class UserGiftListLookup {
 	/**
-	 * @var IContextSource|RequestContext $context
+	 * @var IContextSource|RequestContext
 	 */
 	private $context;
 
 	/**
-	 * @var User $user
+	 * @var User
 	 */
 	private $user;
 
 	/**
-	 * @var int $limit
+	 * @var int
 	 */
 	private $limit;
 
 	/**
-	 * @var int $page
+	 * @var int
 	 */
 	private $page;
 
@@ -55,7 +55,7 @@ class UserGiftListLookup {
 				'gift_id', 'gift_createdate', 'gift_name', 'gift_description',
 				'gift_given_count'
 			],
-			[ "gift_access = 0 OR gift_creator_user_id = {$this->user->getId()}" ],
+			[ "gift_access = 0 OR gift_creator_actor = {$this->user->getActorId()}" ],
 			__METHOD__,
 			$params
 		);
@@ -80,6 +80,7 @@ class UserGiftListLookup {
 		$dbr = wfGetDB( DB_REPLICA );
 
 		$where = []; // Prevent E_NOTICE
+		$params = [];
 		$params['ORDER BY'] = 'gift_createdate';
 		if ( $this->limit ) {
 			$params['LIMIT'] = $this->limit;
@@ -92,15 +93,14 @@ class UserGiftListLookup {
 			!$this->user->isAllowed( 'giftadmin' ) &&
 			!$this->user->isAllowed( 'delete' )
 		) {
-			$where = [ 'gift_creator_user_id' => $this->user->getId() ];
+			$where = [ 'gift_creator_actor' => $this->user->getActorId() ];
 		}
 
 		$res = $dbr->select(
 			'gift',
 			[
 				'gift_id', 'gift_createdate', 'gift_name', 'gift_description',
-				'gift_given_count', 'gift_access', 'gift_creator_user_id',
-				'gift_creator_user_name'
+				'gift_given_count', 'gift_access', 'gift_creator_actor'
 			],
 			$where,
 			__METHOD__,

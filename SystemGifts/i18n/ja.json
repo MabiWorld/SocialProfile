@@ -3,14 +3,16 @@
 		"authors": [
 			"Aotake",
 			"Fryed-peach",
-			"Hosiryuhosi"
+			"Hosiryuhosi",
+			"Rxy",
+			"Shirayuki"
 		]
 	},
 	"systemgiftmanager": "システムからの贈り物の管理",
 	"ga-addnew": "+ 新しい贈り物を追加",
 	"ga-back-edit-gift": "戻ってこの贈り物を編集する",
 	"ga-back-gift-list": "贈り物一覧へ戻る",
-	"ga-back-link": "<a href=\"$1\">< $2のプロフィールへ戻る</a>",
+	"ga-back-link": "[[User:$1|< $1のプロフィールへ戻る]]",
 	"ga-choosefile": "ファイルを選ぶ:",
 	"ga-count": "$1 は$2{{PLURAL:$2|回}}表彰されています",
 	"ga-create-gift": "贈り物を作成",
@@ -41,7 +43,11 @@
 	"ga-title": "$1のもらった賞",
 	"ga-uploadsuccess": "アップロード成功",
 	"ga-viewlist": "贈り物一覧を見る",
+	"ga-remove": "除去",
+	"topawards-comments": "コメント",
+	"topawards-friends": "友達",
 	"system_gift_received_subject": "{{SITENAME}}にて$1賞を受けました",
 	"system_gift_received_body": "$1さん、こんにちは。\n\n$1さんは、{{SITENAME}}にて$2賞を受賞されました！\n\n「$3」\n\nトロフィー入れを確認するには下のリンクをクリックしてください！\n\n$4\n\nお気に入れば幸いです！\n\n{{SITENAME}}チーム\n\n---\nメール受信を停止したい場合は、\n$5\nをクリックして、メール通知を無効にするよう設定変更してください。",
-	"right-awardsmanage": "賞の編集・新規作成"
+	"right-awardsmanage": "賞を新規作成/編集",
+	"action-awardsmanage": "賞の新規作成/編集"
 }

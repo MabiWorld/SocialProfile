@@ -1,7 +1,6 @@
 -- Postgres version
-
 CREATE TABLE user_profile (
-  up_user_id           INTEGER      NOT NULL  DEFAULT 0 PRIMARY KEY,
+  up_actor             INTEGER      NOT NULL  PRIMARY KEY,
   up_location_city     TEXT,
   up_location_state    TEXT,
   up_location_country  TEXT,

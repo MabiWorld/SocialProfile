@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Special page that shows the top users for a given statistic, i.e.
@@ -22,9 +23,9 @@ class TopFansByStat extends UnlistedSpecialPage {
 	 * @param string|null $par Statistic name, i.e. friends_count or edit_count, etc. (or null)
 	 */
 	public function execute( $par ) {
-		global $wgMemc;
 		global $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly;
 
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$linkRenderer = $this->getLinkRenderer();
 		$lang = $this->getLanguage();
 		$out = $this->getOutput();
@@ -48,7 +49,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 		) {
 			$out->setPageTitle( $this->msg( 'top-fans-bad-field-title' )->plain() );
 			$out->addHTML( htmlspecialchars( $this->msg( 'top-fans-bad-field-message' )->plain() ) );
-			return false;
+			return;
 		}
 
 		// Fix i18n message key
@@ -65,8 +66,8 @@ class TopFansByStat extends UnlistedSpecialPage {
 		// Get the list of users
 
 		// Try cache
-		$key = $wgMemc->makeKey( 'user_stats', 'top', $statistic, $realCount );
-		$data = $wgMemc->get( $key );
+		$key = $cache->makeKey( 'user_stats', 'top', $statistic, $realCount );
+		$data = $cache->get( $key );
 
 		if ( $data != '' ) {
 			$logger->debug( "Got top users by {statistic} ({count}) from cache\n", [
@@ -81,13 +82,15 @@ class TopFansByStat extends UnlistedSpecialPage {
 				'count' => $count
 			] );
 
+			$params = [];
 			$params['ORDER BY'] = "{$column} DESC";
 			$params['LIMIT'] = $count;
 
+			// @phan-suppress-next-line SecurityCheck-SQLInjection false positive, phan doesn't understand our custom validation of $column on L47
 			$res = $dbr->select(
 				'user_stats',
-				[ 'stats_user_id', 'stats_user_name', $column ],
-				[ 'stats_user_id <> 0', "{$column} > 0" ],
+				[ 'stats_actor', $column ],
+				[ 'stats_actor IS NOT NULL', "{$column} > 0" ],
 				__METHOD__,
 				$params
 			);
@@ -95,7 +98,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 			$loop = 0;
 
 			foreach ( $res as $row ) {
-				$u = User::newFromId( $row->stats_user_id );
+				$u = User::newFromActorId( $row->stats_actor );
 				// Ensure that the user exists for real.
 				// Otherwise we'll be happily displaying entries for users that
 				// once existed but no longer do (account merging is a thing,
@@ -104,12 +107,11 @@ class TopFansByStat extends UnlistedSpecialPage {
 				// different bug with a different extension).
 				// Also ignore flagged bot accounts, no point in showing those
 				// in the top lists.
-				$exists = $u->loadFromId();
+				$exists = $u->load();
 
-				if ( $exists && !$u->isBlocked() && !$u->isBot() ) {
+				if ( $exists && !$u->getBlock() && !$u->isBot() ) {
 					$user_list[] = [
-						'user_id' => $row->stats_user_id,
-						'user_name' => $row->stats_user_name,
+						'actor' => $row->stats_actor,
 						'stat' => $row->$column
 					];
 				}
@@ -119,7 +121,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 				}
 			}
 
-			$wgMemc->set( $key, $user_list, 60 * 5 );
+			$cache->set( $key, $user_list, 60 * 5 );
 		}
 
 		// Top nav bar
@@ -127,17 +129,17 @@ class TopFansByStat extends UnlistedSpecialPage {
 		$recent_title = SpecialPage::getTitleFor( 'TopUsersRecent' );
 
 		$output = '<div class="top-fan-nav">
-			<h1>' . htmlspecialchars( $this->msg( 'top-fans-by-points-nav-header' )->plain() ) . '</h1>
+			<h1>' . $this->msg( 'top-fans-by-points-nav-header' )->escaped() . '</h1>
 			<p><a href="' . htmlspecialchars( $top_title->getFullURL() ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-total-points-link' )->plain() ) . '</a></p>';
+					$this->msg( 'top-fans-total-points-link' )->escaped() . '</a></p>';
 
 		if ( $wgUserStatsTrackWeekly ) {
 			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=monthly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-monthly-points-link' )->plain() ) . '</a><p>';
+				$this->msg( 'top-fans-monthly-points-link' )->escaped() . '</a><p>';
 		}
 		if ( $wgUserStatsTrackMonthly ) {
 			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=weekly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-weekly-points-link' )->plain() ) . '</a></p>';
+				$this->msg( 'top-fans-weekly-points-link' )->escaped() . '</a></p>';
 		}
 
 		// Build nav of stats by category based on MediaWiki:Topfans-by-category
@@ -145,7 +147,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 
 		if ( !$message->isDisabled() ) {
 			$output .= '<h1 class="top-title">' .
-				htmlspecialchars( $this->msg( 'top-fans-by-category-nav-header' )->plain() ) . '</h1>';
+				$this->msg( 'top-fans-by-category-nav-header' )->escaped() . '</h1>';
 
 			$lines = explode( "\n", $message->text() );
 			foreach ( $lines as $line ) {
@@ -160,7 +162,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 					// message (refs bug #30030)
 					$msgObj = $this->msg( $link_text );
 					if ( !$msgObj->isDisabled() ) {
-						$link_text = $msgObj->parse();
+						$link_text = $msgObj->text();
 					}
 
 					$output .= '<p>';
@@ -180,34 +182,32 @@ class TopFansByStat extends UnlistedSpecialPage {
 		$output .= '<div class="top-users">';
 
 		foreach ( $user_list as $user ) {
-			$user_name = $lang->truncate( $user['user_name'], 22 );
-			$user_title = Title::makeTitle( NS_USER, $user['user_name'] );
-			$avatar = new wAvatar( $user['user_id'], 'm' );
+			$u = User::newFromActorId( $user['actor'] );
+			if ( !$u ) {
+				continue;
+			}
+
+			$user_name = $lang->truncateForVisual( $u->getName(), 22 );
+			$avatar = new wAvatar( $u->getId(), 'm' );
 			$commentIcon = $avatar->getAvatarURL();
 
 			// Stats row
-			// TODO: opinion_average isn't currently working, so it's not enabled in menus
-			if ( $statistic == 'opinion_average' ) {
-				$statistics_row = number_format( $row->opinion_average, 2 );
-				$lowercase_statistics_name = 'percent';
-			} else {
-				$statistics_row = number_format( $user['stat'] );
-				$lowercase_statistics_name = $lang->lc( $this->msg(
-					"top-fans-stats-{$fixedStatistic}",
-					$user['stat']
-				)->parse() );
-			}
+			$statistics_row = number_format( $user['stat'] );
+			$lowercase_statistics_name = $lang->lc( $this->msg(
+				"top-fans-stats-{$fixedStatistic}",
+				$user['stat']
+			)->parse() );
 
 			$output .= '<div class="top-fan-row">
 				<span class="top-fan-num">' . $x . '.</span>
 				<span class="top-fan">' .
 					$commentIcon .
 					$linkRenderer->makeLink(
-						$user_title,
+						$u->getUserPage(),
 						$user_name
 					) .
 				'</span>
-				<span class="top-fan-points"><b>' . $statistics_row . '</b> ' . $lowercase_statistics_name . '</span>
+				<span class="top-fan-points"><b>' . htmlspecialchars( $statistics_row, ENT_QUOTES ) . '</b> ' . $lowercase_statistics_name . '</span>
 				<div class="visualClear"></div>
 			</div>';
 			$x++;

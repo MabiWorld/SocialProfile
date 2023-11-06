@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 class UserProfileHooks {
 
 	/**
@@ -9,7 +11,7 @@ class UserProfileHooks {
 	 *
 	 * @param Parser $parser
 	 */
-	public static function onParserFirstCallInit( &$parser ) {
+	public static function onParserFirstCallInit( Parser $parser ) {
 		$parser->setHook( 'randomuserswithavatars', [ 'RandomUsersWithAvatars', 'getRandomUsersWithAvatars' ] );
 		$parser->setHook( 'newusers', [ 'NewUsersList', 'getNewUsers' ] );
 	}
@@ -22,20 +24,32 @@ class UserProfileHooks {
 	 * @see https://phabricator.wikimedia.org/T167506
 	 * @param OutputPage $out
 	 * @param Skin $skin
-	 * @param array $bodyAttrs Pre-existing attributes of the <body> tag
+	 * @param array &$bodyAttrs Pre-existing attributes of the <body> tag
 	 */
-	public static function onOutputPageBodyAttributes( $out, $skin, &$bodyAttrs ) {
+	public static function onOutputPageBodyAttributes( $out, $skin, array &$bodyAttrs ) {
 		global $wgUserPageChoice;
 
 		$title = $out->getTitle();
+		$pageTitle = $title->getText();
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
 		// Only NS_USER is "ambiguous", NS_USER_PROFILE and NS_USER_WIKI are not
 		// Also we don't care about subpages here since only the main user page
 		// can be something else than wikitext
-		if ( $title->inNamespace( NS_USER ) && !$title->isSubpage() && $wgUserPageChoice ) {
-			$profile = new UserProfile( $title->getText() );
+		// Also ignore anonymous users since they can't have social profiles and
+		// passing an IP address to UserProfile's constructor would break things
+		// Finally also ensure that the username isn't mojibake or other garbage
+		// which would fail MW's username validation and thus cause a user-facing
+		// fatal error
+		if (
+			$title->inNamespace( NS_USER ) &&
+			!$title->isSubpage() &&
+			$wgUserPageChoice &&
+			$userNameUtils->isUsable( $pageTitle )
+		) {
+			$profile = new UserProfile( $pageTitle );
 			$profile_data = $profile->getProfile();
 
-			if ( isset( $profile_data['user_id'] ) && $profile_data['user_id'] ) {
+			if ( isset( $profile_data['actor'] ) && $profile_data['actor'] ) {
 				if ( $profile_data['user_page_type'] == 0 ) {
 					$bodyAttrs['class'] .= ' mw-wiki-user-page';
 				} else {
@@ -46,29 +60,80 @@ class UserProfileHooks {
 	}
 
 	/**
-	 * Called by ArticleFromTitle hook
-	 * Calls UserProfilePage instead of standard article
+	 * Mark social user pages as known so they appear in blue, unless the user
+	 * is explicitly using a wiki user page, which may or may not exist.
 	 *
-	 * @param Title &$title
-	 * @param WikiPage|Article &$article
+	 * The assumption here is that when we have a Title pointing to a non-subpage
+	 * page in the user NS (i.e. a user profile page), we _probably_ want to treat
+	 * it as a blue link unless we have a good reason not to.
+	 *
+	 * Pages like Special:TopUsers etc. which use LinkRenderer would be slightly
+	 * confusing if they'd show a mixture of red and blue links when in fact,
+	 * regardless of the URL params, with SocialProfile installed they behave the
+	 * same.
+	 *
+	 * @param Title $title title to check
+	 * @param bool &$isKnown Whether the page should be considered known
 	 */
-	public static function onArticleFromTitle( &$title, &$article, $context ) {
-		global $wgHooks, $wgUserPageChoice;
+	public static function onTitleIsAlwaysKnown( $title, &$isKnown ) {
+		// global $wgUserPageChoice;
 
-		$out = $context->getOutput();
-		$request = $context->getRequest();
-
+		$pageTitle = $title->getText();
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
+		// @todo FIXME: also filter out nonexistent users (viewing the User: page of an
+		// account that does not literally exist in the DB)
 		if (
+			$title->inNamespace( NS_USER ) &&
 			!$title->isSubpage() &&
-			$title->inNamespaces( [ NS_USER, NS_USER_PROFILE ] )
+			$userNameUtils->isUsable( $pageTitle )
 		) {
-			$show_user_page = false;
+			$isKnown = true;
+			/* @todo Do we care? Also, how expensive would this be in the long run?
 			if ( $wgUserPageChoice ) {
 				$profile = new UserProfile( $title->getText() );
 				$profile_data = $profile->getProfile();
 
+				if ( isset( $profile_data['user_id'] ) && $profile_data['user_id'] ) {
+					if ( $profile_data['user_page_type'] == 0 ) {
+						$isKnown = false;
+					}
+				}
+			}
+			*/
+		}
+	}
+
+	/**
+	 * Called by ArticleFromTitle hook
+	 * Calls UserProfilePage instead of standard article on registered users'
+	 * User: or User_profile: pages which are not subpages
+	 *
+	 * @param Title $title
+	 * @param Article|null &$article
+	 * @param IContextSource $context
+	 */
+	public static function onArticleFromTitle( Title $title, &$article, $context ) {
+		global $wgHooks, $wgUserPageChoice;
+
+		$out = $context->getOutput();
+		$request = $context->getRequest();
+		$pageTitle = $title->getText();
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
+		if (
+			!$title->isSubpage() &&
+			$title->inNamespaces( [ NS_USER, NS_USER_PROFILE ] ) &&
+			// Avoid new UserProfile( ... ) call below fataling on shitty mojibake usernames
+			// which fail core MW username validation; if we don't, there's gonna be a
+			// user-facing fatal, and that's nasty.
+			$userNameUtils->isUsable( $pageTitle )
+		) {
+			$show_user_page = false;
+			if ( $wgUserPageChoice ) {
+				$profile = new UserProfile( $pageTitle );
+				$profile_data = $profile->getProfile();
+
 				// If they want regular page, ignore this hook
-				if ( isset( $profile_data['user_id'] ) && $profile_data['user_id'] && $profile_data['user_page_type'] == 0 ) {
+				if ( isset( $profile_data['actor'] ) && $profile_data['actor'] && $profile_data['user_page_type'] == 0 ) {
 					$show_user_page = true;
 				}
 			}
@@ -79,7 +144,14 @@ class UserProfileHooks {
 					$out->redirect( $title->getFullURL() );
 				}
 			} else {
-				$out->enableClientCache( false );
+				if ( method_exists( $out, 'disableClientCache' ) ) {
+					// MW 1.38+
+					$out->disableClientCache();
+				} else {
+					// @phan-suppress-next-line PhanParamTooMany The arg is there for pre-1.38 MWs
+					$out->enableClientCache( false );
+				}
+
 				$wgHooks['ParserLimitReportPrepare'][] = 'UserProfileHooks::onParserLimitReportPrepare';
 			}
 
@@ -122,29 +194,52 @@ class UserProfileHooks {
 	 *
 	 * @author Scott Cushman@wikiHow -- original code
 	 * @author Jack Phoenix, Samantha Nguyen -- modifications
+	 *
+	 * @param DifferenceEngine $differenceEngine
+	 * @param string &$oldHeader
+	 * @param string $prevLink
+	 * @param string $oldMinor
+	 * @param bool $diffOnly
+	 * @param string $ldel
+	 * @param bool $unhide
 	 */
 	public static function onDifferenceEngineOldHeader( $differenceEngine, &$oldHeader, $prevLink, $oldMinor, $diffOnly, $ldel, $unhide ) {
 		global $wgUserProfileAvatarsInDiffs;
 
 		if ( !$wgUserProfileAvatarsInDiffs ) {
-			return true;
+			return;
 		}
 
-		$oldRevisionHeader = $differenceEngine->getRevisionHeader( $differenceEngine->mOldRev, 'complete', 'old' );
+		// Need a RevisionRecord object
+		$oldRevision = $differenceEngine->getOldRevision();
 
-		$username = $differenceEngine->mOldRev->getUserText();
-		$avatar = new wAvatar( $differenceEngine->mOldRev->getUser(), 'l' );
+		// Core MW DifferenceEngine#getRevisionHeader never had a 3rd parameter.
+		// wikiHow introduced it for a custom hook of theirs, which hasn't (yet)
+		// been upstreamed. If uncommented, this would cause a PhanParamTooMany
+		// issue, but no adverse functionality whatsoever.
+		$oldRevisionHeader = $differenceEngine->getRevisionHeader( $oldRevision, 'complete'/*, 'old'*/ );
+
+		$oldRevUser = $oldRevision->getUser();
+		if ( $oldRevUser ) {
+			$username = $oldRevUser->getName();
+			$uid = $oldRevUser->getId();
+		} else {
+			return;
+		}
+
+		$avatar = new wAvatar( $uid, 'l' );
 		$avatarElement = $avatar->getAvatarURL( [
 			'alt' => $username,
 			'title' => $username,
 			'class' => 'diff-avatar'
 		] );
 
-		$oldHeader = '<div id="mw-diff-otitle1"><h4>' . $oldRevisionHeader . '</h4></div>' .
+		$oldHeader = '<div id="mw-diff-otitle1"><strong>' . $oldRevisionHeader . '</strong></div>' .
 			'<div id="mw-diff-otitle2">' . $avatarElement . '<div id="mw-diff-oinfo">' .
-			Linker::revUserTools( $differenceEngine->mOldRev, !$unhide ) .
+			Linker::revUserTools( $oldRevision, !$unhide ) .
 			// '<br /><div id="mw-diff-odaysago">' . $differenceEngine->mOldRev->getTimestamp() . '</div>' .
-			Linker::revComment( $differenceEngine->mOldRev, !$diffOnly, !$unhide ) .
+			MediaWikiServices::getInstance()->getCommentFormatter()
+				->formatRevision( $oldRevision, $differenceEngine->getAuthority(), !$diffOnly, !$unhide ) .
 			'</div></div>' .
 			'<div id="mw-diff-otitle3" class="rccomment">' . $oldMinor . $ldel . '</div>' .
 			'<div id="mw-diff-otitle4">' . $prevLink . '</div>';
@@ -158,32 +253,57 @@ class UserProfileHooks {
 	 *
 	 * @author Scott Cushman@wikiHow -- original code
 	 * @author Jack Phoenix, Samantha Nguyen -- modifications
+	 *
+	 * @param DifferenceEngine $differenceEngine
+	 * @param string &$newHeader
+	 * @param string[] $formattedRevisionTools
+	 * @param string $nextLink
+	 * @param string $rollback
+	 * @param string $newMinor
+	 * @param bool $diffOnly
+	 * @param string $rdel
+	 * @param bool $unhide
 	 */
 	public static function onDifferenceEngineNewHeader( $differenceEngine, &$newHeader, $formattedRevisionTools, $nextLink, $rollback, $newMinor, $diffOnly, $rdel, $unhide ) {
 		global $wgUserProfileAvatarsInDiffs;
 
 		if ( !$wgUserProfileAvatarsInDiffs ) {
-			return true;
+			return;
 		}
 
+		// Need a RevisionRecord object
+		$newRevision = $differenceEngine->getNewRevision();
+
+		// Core MW DifferenceEngine#getRevisionHeader never had a 3rd parameter.
+		// wikiHow introduced it for a custom hook of theirs, which hasn't (yet)
+		// been upstreamed. If uncommented, this would cause a PhanParamTooMany
+		// issue, but no adverse functionality whatsoever.
 		$newRevisionHeader =
-			$differenceEngine->getRevisionHeader( $differenceEngine->mNewRev, 'complete', 'new' ) .
+			$differenceEngine->getRevisionHeader( $newRevision, 'complete'/*, 'new'*/ ) .
 			' ' . implode( ' ', $formattedRevisionTools );
 
-		$username = $differenceEngine->mNewRev->getUserText();
-		$avatar = new wAvatar( $differenceEngine->mNewRev->getUser(), 'l' );
+		$newRevUser = $newRevision->getUser();
+		if ( $newRevUser ) {
+			$username = $newRevUser->getName();
+			$uid = $newRevUser->getId();
+		} else {
+			return;
+		}
+
+		$avatar = new wAvatar( $uid, 'l' );
 		$avatarElement = $avatar->getAvatarURL( [
 			'alt' => $username,
 			'title' => $username,
 			'class' => 'diff-avatar'
 		] );
 
-		$newHeader = '<div id="mw-diff-ntitle1"><h4>' . $newRevisionHeader . '</h4></div>' .
+		$newHeader = '<div id="mw-diff-ntitle1"><strong>' . $newRevisionHeader . '</strong></div>' .
 			'<div id="mw-diff-ntitle2">' . $avatarElement . '<div id="mw-diff-oinfo">'
-			. Linker::revUserTools( $differenceEngine->mNewRev, !$unhide ) .
+			. Linker::revUserTools( $newRevision, !$unhide ) .
 			" $rollback " .
 			// '<br /><div id="mw-diff-ndaysago">' . $differenceEngine->mNewRev->getTimestamp() . '</div>' .
-			Linker::revComment( $differenceEngine->mNewRev, !$diffOnly, !$unhide ) .
+			MediaWikiServices::getInstance()->getCommentFormatter()
+				->formatRevision( $newRevision, $differenceEngine->getAuthority(), !$diffOnly, !$unhide ) .
 			'</div></div>' .
 			'<div id="mw-diff-ntitle3" class="rccomment">' . $newMinor . $rdel . '</div>' .
 			'<div id="mw-diff-ntitle4">' . $nextLink . $differenceEngine->markPatrolledLink() . '</div>';

@@ -1,6 +1,13 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 class RemoveGift extends UnlistedSpecialPage {
+
+	/**
+	 * @var int ID of the gift we're removing
+	 */
+	public $gift_id;
 
 	public function __construct() {
 		parent::__construct( 'RemoveGift' );
@@ -21,8 +28,6 @@ class RemoveGift extends UnlistedSpecialPage {
 	 * @param string|null $par
 	 */
 	public function execute( $par ) {
-		global $wgMemc;
-
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 		$user = $this->getUser();
@@ -34,30 +39,33 @@ class RemoveGift extends UnlistedSpecialPage {
 		$out->addModuleStyles( 'ext.socialprofile.usergifts.css' );
 
 		$this->gift_id = $request->getInt( 'gift_id' );
-		$rel = new UserGifts( $user->getName() );
+		$rel = new UserGifts( $user );
 
 		// Make sure that we have a gift ID, can't do anything without that
-		if ( !$this->gift_id || !is_numeric( $this->gift_id ) ) {
+		if ( !$this->gift_id ) {
 			$out->setPageTitle( $this->msg( 'g-error-title' )->plain() );
 			$out->addHTML( htmlspecialchars( $this->msg( 'g-error-message-invalid-link' )->plain() ) );
-			return false;
+			return;
 		}
 
 		// And also ensure that we're not trying to delete *someone else's* gift(s)...
-		if ( $rel->doesUserOwnGift( $user->getId(), $this->gift_id ) == false ) {
+		if ( $rel->doesUserOwnGift( $user, $this->gift_id ) == false ) {
 			$out->setPageTitle( $this->msg( 'g-error-title' )->plain() );
 			$out->addHTML( htmlspecialchars( $this->msg( 'g-error-do-not-own' )->plain() ) );
-			return false;
+			return;
 		}
 
 		$gift = $rel->getUserGift( $this->gift_id );
-		if ( $request->wasPosted() && $_SESSION['alreadysubmitted'] == false ) {
+		if (
+			$request->wasPosted() &&
+			$user->matchEditToken( $request->getVal( 'wpEditToken' ) ) &&
+			$_SESSION['alreadysubmitted'] == false
+		) {
 			$_SESSION['alreadysubmitted'] = true;
 
-			$user_page_link = Title::makeTitle( NS_USER, $user->getName() );
-
-			if ( $rel->doesUserOwnGift( $user->getId(), $this->gift_id ) == true ) {
-				$wgMemc->delete( $wgMemc->makeKey( 'user', 'profile', 'gifts', $user->getId() ) );
+			if ( $rel->doesUserOwnGift( $user, $this->gift_id ) == true ) {
+				$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+				$cache->delete( $cache->makeKey( 'user', 'profile', 'gifts', 'actor_id', $user->getActorId() ) );
 				$rel->deleteGift( $this->gift_id );
 			}
 
@@ -68,7 +76,7 @@ class RemoveGift extends UnlistedSpecialPage {
 
 			$html = '<div class="back-links">
 				<a href="' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . '">' .
-					$this->msg( 'g-back-link', $gift['user_name_to'] )->parse() . '</a>
+					$this->msg( 'g-back-link', User::newFromActorId( $gift['actor_to'] )->getName() )->parse() . '</a>
 			</div>
 			<div class="g-container">' .
 				$icon . $this->msg( 'g-remove-success-message', $gift['name'] )->parse() .
@@ -76,7 +84,7 @@ class RemoveGift extends UnlistedSpecialPage {
 			</div>
 			<div class="g-buttons">
 				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'mainpage' )->plain() ) . '" size="20" onclick="window.location=\'index.php?title=' . $this->msg( 'mainpage' )->inContentLanguage()->escaped() . '\'" />
-				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-your-profile' )->plain() ) . '" size="20" onclick="window.location=\'' . htmlspecialchars( $user_page_link->getFullURL() ) . '\'" />
+				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-your-profile' )->plain() ) . '" size="20" onclick="window.location=\'' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . '\'" />
 			</div>';
 
 			$out->addHTML( $html );
@@ -93,9 +101,9 @@ class RemoveGift extends UnlistedSpecialPage {
 	 */
 	function displayForm() {
 		$currentUser = $this->getUser();
-		$rel = new UserGifts( $currentUser->getName() );
+		$rel = new UserGifts( $currentUser );
 		$gift = $rel->getUserGift( $this->gift_id );
-		$user = Title::makeTitle( NS_USER, $gift['user_name_from'] );
+		$userFrom = User::newFromActorId( $gift['actor_from'] );
 		$userGiftIcon = new UserGiftIcon( $gift['gift_id'], 'l' );
 		$icon = $userGiftIcon->getIconHTML();
 
@@ -103,7 +111,7 @@ class RemoveGift extends UnlistedSpecialPage {
 
 		$output = '<div class="back-links">
 			<a href="' . htmlspecialchars( $currentUser->getUserPage()->getFullURL() ) . '">' .
-				$this->msg( 'g-back-link', $gift['user_name_to'] )->parse() . '</a>
+				$this->msg( 'g-back-link', User::newFromActorId( $gift['actor_to'] )->getName() )->parse() . '</a>
 		</div>
 		<form action="" method="post" enctype="multipart/form-data" name="form1">
 			<div class="g-remove-message">' .
@@ -113,12 +121,10 @@ class RemoveGift extends UnlistedSpecialPage {
 				$icon .
 				'<div class="g-name">' . htmlspecialchars( $gift['name'] ) . '</div>
 				<div class="g-from">' .
-					// FIXME: This message uses raw html
 					$this->msg(
 						'g-from',
-						htmlspecialchars( $user->getFullURL() ),
-						htmlspecialchars( $gift['user_name_from'] )
-					)->text() . '</div>';
+						$userFrom->getName()
+					)->parse() . '</div>';
 		if ( $gift['message'] ) {
 			$output .= '<div class="g-user-message">' .
 				htmlspecialchars( $gift['message'] ) . '</div>';
@@ -126,8 +132,9 @@ class RemoveGift extends UnlistedSpecialPage {
 		$output .= '</div>
 			<div class="visualClear"></div>
 			<div class="g-buttons">' .
-				Html::hidden( 'user', $gift['user_name_from'] ) .
-				'<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-remove' )->plain() ) . '" size="20" onclick="document.form1.submit()" />
+				Html::hidden( 'user', $userFrom->getName() ) .
+				Html::hidden( 'wpEditToken', $currentUser->getEditToken() ) .
+				'<input type="submit" class="site-button" value="' . htmlspecialchars( $this->msg( 'g-remove' )->plain() ) . '" size="20" />
 				<input type="button" class="site-button" value="' . htmlspecialchars( $this->msg( 'cancel' )->plain() ) . '" size="20" onclick="history.go(-1)" />
 			</div>
 		</form>';

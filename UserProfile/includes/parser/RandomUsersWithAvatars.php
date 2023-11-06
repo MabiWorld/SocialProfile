@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * RandomUsersWithAvatars - displays a number of randomly selected users
  * that have uploaded an avatar though [[Special:UploadAvatar]].
@@ -18,11 +21,14 @@ class RandomUsersWithAvatars {
 	 * @param string|null $input
 	 * @param array $args
 	 * @param Parser $parser
+	 *
+	 * @return string
 	 */
-	public static function getRandomUsersWithAvatars( $input, $args, $parser ) {
-		global $wgUploadDirectory, $wgDBname, $wgMemc;
+	public static function getRandomUsersWithAvatars( $input, array $args, Parser $parser ) {
+		global $wgAvatarKey;
 
-		$parser->getOutput()->addModuleStyles( 'ext.socialprofile.userprofile.randomuserswithavatars.styles' );
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$parser->getOutput()->addModuleStyles( [ 'ext.socialprofile.userprofile.randomuserswithavatars.styles' ] );
 		$parser->getOutput()->updateCacheExpiry( 0 );
 
 		$count = ( isset( $args['count'] ) && is_numeric( $args['count'] ) ) ? intval( $args['count'] ) : 10;
@@ -36,11 +42,22 @@ class RandomUsersWithAvatars {
 		}
 
 		// Try cache
-		$key = $wgMemc->makeKey( 'users', 'random', 'avatars', $count, $perRow, $size );
-		$data = $wgMemc->get( $key );
+		$key = $cache->makeKey( 'users', 'random', 'avatars', $count, $perRow, $size );
+		$data = $cache->get( $key );
 		if ( !$data ) {
-			$files = glob( $wgUploadDirectory . "/avatars/{$wgDBname}_*_{$size}.*" );
-			$wgMemc->set( $key, $files, 60 * 60 );
+			$backend = new SocialProfileFileBackend( 'avatars' );
+
+			$reSize = preg_quote( $size );
+			$files = preg_grep(
+				"/^{$wgAvatarKey}_[0-9]+_{$reSize}\.(png|gif|jpe?g)$/i",
+				iterator_to_array( $backend->getFileBackend()->getFileList( [
+					'dir' => $backend->getContainerStoragePath(),
+					'topOnly' => true,
+					'adviseStat' => false,
+				] ) )
+			);
+
+			$cache->set( $key, $files, 60 * 60 );
 		} else {
 			wfDebug( "Got random users with avatars from cache\n" );
 			$files = $data;
@@ -63,8 +80,8 @@ class RandomUsersWithAvatars {
 		foreach ( $randomKeys as $random ) {
 			// Extract user ID out of avatar image name
 			$avatarName = basename( $files[$random] );
-			preg_match( "/{$wgDBname}_(.*)_/i", $avatarName, $matches );
-			$userId = $matches[1];
+			preg_match( "/{$wgAvatarKey}_(.*)_/i", $avatarName, $matches );
+			$userId = (int)$matches[1];
 
 			if ( $userId ) {
 				// Load user

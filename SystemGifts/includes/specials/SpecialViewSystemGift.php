@@ -35,10 +35,10 @@ class ViewSystemGift extends UnlistedSpecialPage {
 		// If gift ID wasn't passed in the URL parameters or if it's not
 		// numeric, display an error message
 		$giftId = $this->getRequest()->getInt( 'gift_id' );
-		if ( !$giftId || !is_numeric( $giftId ) ) {
-			$out->setPageTitle( $this->msg( 'ga-error-title' )->plain() );
-			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->plain() );
-			return false;
+		if ( !$giftId ) {
+			$out->setPageTitle( $this->msg( 'ga-error-title' ) );
+			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->escaped() );
+			return;
 		}
 
 		$gift = UserSystemGifts::getUserGift( $giftId );
@@ -50,44 +50,48 @@ class ViewSystemGift extends UnlistedSpecialPage {
 					$g->clearUserGiftStatus( $gift['id'] );
 				}
 			}
+
 			// DB stuff
 			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
-				'user_system_gift',
+				[ 'user_system_gift', 'actor' ],
 				[
-					'DISTINCT sg_user_name', 'sg_user_id', 'sg_gift_id',
+					'DISTINCT actor_name', 'actor_user', 'sg_actor', 'sg_gift_id',
 					'sg_date'
 				],
 				[
-					"sg_gift_id = {$gift['gift_id']}",
-					'sg_user_name <> ' . $dbr->addQuotes( $gift['user_name'] )
+					'sg_gift_id' => $gift['gift_id'],
+					'actor_name <> ' . $dbr->addQuotes( $gift['user_name'] )
 				],
 				__METHOD__,
 				[
-					'GROUP BY' => 'sg_user_name',
+					'GROUP BY' => 'actor_name',
 					'ORDER BY' => 'sg_date DESC',
 					'OFFSET' => 0,
 					'LIMIT' => 6
-				]
+				],
+				[ 'actor' => [ 'JOIN', 'actor_id = sg_actor' ] ]
 			);
 
-			$out->setPageTitle( $this->msg( 'ga-gift-title', $gift['user_name'], $gift['name'] )->parse() );
+			$out->setPageTitle( $this->msg( 'ga-gift-title', $gift['user_name'], $gift['name'] ) );
 
-			$profileURL = htmlspecialchars( Title::makeTitle( NS_USER, $gift['user_name'] )->getFullURL() );
 			$output .= '<div class="back-links">' .
-				$this->msg( 'ga-back-link', $profileURL, $gift['user_name'] )->text() .
+				$this->msg( 'ga-back-link', $gift['user_name'] )->parse() .
 			'</div>';
 
-			$message = $out->parse( trim( $gift['description'] ), false );
+			$message = str_replace( [ '<p>', '</p>' ], '', $out->parseAsContent( trim( $gift['description'] ), false ) );
 			$output .= '<div class="ga-description-container">';
 
 			$systemGiftIcon = new SystemGiftIcon( $gift['gift_id'], 'l' );
 			$icon = $systemGiftIcon->getIconHTML();
+			$lang = $this->getLanguage();
+			// because "23:25, 18 July 2020" is more readable than "2020-07-18 23:25:37" (thanks legoktm!)
+			$humanFriendlyTimestamp = $lang->userTimeAndDate( $gift['timestamp'], $user );
 
 			$output .= "<div class=\"ga-description\">
 					{$icon}
-					<div class=\"ga-name\">{$gift['name']}</div>
-					<div class=\"ga-timestamp\">({$gift['timestamp']})</div>
+					<div class=\"ga-name\">" . htmlspecialchars( $gift['name'], ENT_QUOTES ) . "</div>
+					<div class=\"ga-timestamp\">(" . htmlspecialchars( $humanFriendlyTimestamp, ENT_QUOTES ) . ")</div>
 					<div class=\"ga-description-message\">\"{$message}\"</div>";
 			$output .= '<div class="visualClear"></div>
 				</div>';
@@ -98,7 +102,7 @@ class ViewSystemGift extends UnlistedSpecialPage {
 			if ( $gift['gift_count'] > 1 ) {
 				$output .= '<div class="ga-recent">
 					<div class="ga-recent-title">' .
-						$this->msg( 'ga-recent-recipients-award' )->plain() .
+						$this->msg( 'ga-recent-recipients-award' )->escaped() .
 					'</div>
 					<div class="ga-gift-count">' .
 						$this->msg(
@@ -109,9 +113,9 @@ class ViewSystemGift extends UnlistedSpecialPage {
 					'</div>';
 
 				foreach ( $res as $row ) {
-					$userToId = $row->sg_user_id;
+					$userToId = $row->actor_user;
 					$avatar = new wAvatar( $userToId, 'ml' );
-					$userNameLink = Title::makeTitle( NS_USER, $row->sg_user_name );
+					$userNameLink = Title::makeTitle( NS_USER, $row->actor_name );
 
 					$output .= '<a href="' . htmlspecialchars( $userNameLink->getFullURL() ) . "\">
 					{$avatar->getAvatarURL()}
@@ -126,8 +130,8 @@ class ViewSystemGift extends UnlistedSpecialPage {
 
 			$out->addHTML( $output );
 		} else {
-			$out->setPageTitle( $this->msg( 'ga-error-title' )->plain() );
-			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->plain() );
+			$out->setPageTitle( $this->msg( 'ga-error-title' ) );
+			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->escaped() );
 		}
 	}
 }

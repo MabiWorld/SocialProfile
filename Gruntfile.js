@@ -1,33 +1,34 @@
-/*jshint node:true */
+/* eslint-env node, es6 */
 module.exports = function ( grunt ) {
-	grunt.loadNpmTasks( 'grunt-contrib-jshint' );
-	grunt.loadNpmTasks( 'grunt-jsonlint' );
 	grunt.loadNpmTasks( 'grunt-banana-checker' );
+	grunt.loadNpmTasks( 'grunt-eslint' );
 
 	grunt.initConfig( {
-		jshint: {
+		eslint: {
 			options: {
-				jshintrc: true
+				cache: true
 			},
 			all: [
-				'**/*.js',
+				'**/*.{js,json}',
 				'!node_modules/**',
-				'!vendor/**',
-				'!shared/**'
+				'!vendor/**'
 			]
 		},
 		banana: {
-			all: 'i18n/'
-		},
-		jsonlint: {
 			all: [
-				'**/*.json',
-				'!node_modules/**',
-				'!vendor/**'
+				'i18n/',
+				'UserBoard/i18n/',
+				'UserProfile/i18n/',
+				'UserRelationship/i18n/',
+				'UserStats/i18n/',
+				'SystemGifts/i18n/',
+				'UserActivity/i18n/',
+				'UserGifts/i18n/',
+				'UserWelcome/i18n/'
 			]
 		}
 	} );
 
-	grunt.registerTask( 'test', [ 'jshint', 'jsonlint', 'banana' ] );
+	grunt.registerTask( 'test', [ 'eslint', 'banana' ] );
 	grunt.registerTask( 'default', 'test' );
 };

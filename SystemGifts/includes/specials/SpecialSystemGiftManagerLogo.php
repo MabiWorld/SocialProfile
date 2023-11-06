@@ -1,6 +1,8 @@
 <?php
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\Shell\Shell;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * A special page to upload images for system gifts (awards).
@@ -10,15 +12,49 @@ use MediaWiki\Logger\LoggerFactory;
  * @file
  * @ingroup Extensions
  */
-
 class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
-	public $mUploadFile, $mUploadDescription, $mIgnoreWarning;
-	public $mUploadSaveName, $mUploadTempName, $mUploadSize, $mUploadOldVersion;
-	public $mUploadCopyStatus, $mUploadSource, $mReUpload, $mAction, $mUpload;
-	public $mOname, $mSessionKey, $mStashed, $mDestFile;
-	public $awardsUploadDirectory;
+	/** @var UploadBase */
+	public $mUploadFile;
+	/** @var string|null */
+	public $mUploadDescription;
+	/** @var bool|null */
+	public $mIgnoreWarning;
+	/** @var string|null */
+	public $mUploadSaveName;
+	/** @var string|null */
+	public $mUploadTempName;
+	/** @var int|null */
+	public $mUploadSize;
+	/** @var string|null */
+	public $mUploadOldVersion;
+	/** @var string|null */
+	public $mUploadCopyStatus;
+	/** @var string|null */
+	public $mUploadSource;
+	/** @var bool|null */
+	public $mReUpload;
+	/** @var string|null */
+	public $mAction;
+	/** @var bool */
+	public $mUpload;
+	/** @var string|null */
+	public $mOname;
+	/** @var int|bool|null */
+	public $mSessionKey;
+	/** @var bool */
+	public $mStashed;
+	/** @var string|null */
+	public $mDestFile;
+	/** @var string|null */
+	public $mSavedFile;
+	/** @var bool|null */
+	public $mWatchthis;
+	/** @var bool|null */
+	public $mTokenOk;
+	/** @var string[]|null */
 	public $fileExtensions;
+	/** @var int|null */
 	public $gift_id;
 
 	public function __construct() {
@@ -42,8 +78,9 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		$this->checkReadOnly();
 
 		// If user is blocked, s/he doesn't need to access this page
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
 		// Set the robot policies, etc.
@@ -66,6 +103,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 			# GET requests just give the main form; no data except wpDestfile.
 			return;
 		}
+
 		$this->gift_id = $request->getInt( 'gift_id' );
 		$this->mIgnoreWarning = $request->getCheck( 'wpIgnoreWarning' );
 		$this->mReUpload = $request->getCheck( 'wpReUpload' );
@@ -84,8 +122,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 		$this->mAction = $request->getVal( 'action' );
 		$this->mSessionKey = $request->getInt( 'wpSessionKey' );
-		if ( !empty( $this->mSessionKey ) &&
-			isset( $_SESSION['wsUploadData'][$this->mSessionKey] ) ) {
+		if ( !empty( $this->mSessionKey ) && isset( $_SESSION['wsUploadData'][$this->mSessionKey] ) ) {
 			/**
 			 * Confirming a temporarily stashed upload.
 			 * We don't want path names to be forged, so we keep
@@ -101,22 +138,24 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 			/**
 			 * Check for a newly uploaded file.
 			 */
-			$this->mUploadTempName = $request->getFileTempName( 'wpUploadFile' );
+			$this->mUploadTempName = $request->getFileTempname( 'wpUploadFile' );
 			$file = new WebRequestUpload( $request, 'wpUploadFile' );
 			$this->mUploadSize = $file->getSize();
 			$this->mOname	= $request->getFileName( 'wpUploadFile' );
 			$this->mSessionKey	= false;
 			$this->mStashed	= false;
 		}
+
+		// If it was posted check for the token (no remote POST'ing with user credentials)
+		$token = $request->getVal( 'wpEditToken' );
+		$this->mTokenOk = $this->getUser()->matchEditToken( $token );
 	}
 
 	/**
 	 * Start doing stuff
 	 */
 	public function executeLogo() {
-		global $wgEnableUploads, $wgUploadDirectory;
-
-		$this->awardsUploadDirectory = $wgUploadDirectory . '/awards';
+		global $wgEnableUploads;
 
 		/** Show an error message if file upload is disabled */
 		if ( !$wgEnableUploads ) {
@@ -126,20 +165,19 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 		/** Check if the user is allowed to upload files */
 		if ( !$this->getUser()->isAllowed( 'upload' ) ) {
-			throw new ErrorPageError( 'uploadnologin', 'uploadnologintext' );
-		}
-
-		/** Check if the image directory is writeable, this is a common mistake */
-		if ( !is_writable( $wgUploadDirectory ) ) {
-			$this->getOutput()->addWikiMsg( 'upload_directory_read_only', $wgUploadDirectory );
-			return;
+			throw new PermissionsError( 'upload' );
 		}
 
 		if ( $this->mReUpload ) {
 			$this->unsaveUploadedFile();
 			$this->mainUploadForm();
-		} elseif ( 'submit' == $this->mAction || $this->mUpload ) {
-			$this->processUpload();
+		} elseif ( $this->mAction == 'submit' || $this->mUpload ) {
+			if ( $this->mTokenOk ) {
+				$this->processUpload();
+			} else {
+				// Possible CSRF attempt or something...
+				$this->mainUploadForm( $this->msg( 'session_fail_preview' )->parse() );
+			}
 		} else {
 			$this->mainUploadForm();
 		}
@@ -148,13 +186,15 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	/**
 	 * Really do the upload
 	 * Checks are made in SpecialUpload::execute()
+	 *
+	 * @return void|string Might return an HTML snippet, error message, or nothing on success
 	 */
 	function processUpload() {
 		/**
 		 * If there was no filename or a zero size given, give up quick.
 		 */
 		if ( trim( $this->mOname ) == '' || empty( $this->mUploadSize ) ) {
-			return $this->mainUploadForm( '<li>' . $this->msg( 'emptyfile' )->plain() . '</li>' );
+			return $this->mainUploadForm( '<li>' . $this->msg( 'emptyfile' )->escaped() . '</li>' );
 		}
 
 		# Chop off any directories in the given filename
@@ -194,10 +234,11 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		 * probably not accept it.
 		 */
 		if ( !$this->mStashed ) {
+			// @phan-suppress-next-line SecurityCheck-PathTraversal False positive
 			$veri = $this->verify( $this->mUploadTempName, $finalExt );
 
 			if ( !$veri->isGood() ) {
-				return $this->uploadError( $this->getOutput()->parse( $veri->getWikiText() ) );
+				return $this->uploadError( $this->getOutput()->parseAsInterface( $veri->getWikiText() ) );
 			}
 		}
 
@@ -223,7 +264,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 			}
 
 			if ( $this->mUploadSize == 0 ) {
-				$warning .= '<li>' . $this->msg( 'emptyfile' )->plain() . '</li>';
+				$warning .= '<li>' . $this->msg( 'emptyfile' )->escaped() . '</li>';
 			}
 
 			if ( $warning != '' ) {
@@ -250,43 +291,100 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		}
 	}
 
+	/**
+	 * Create the award image thumbnails, either with ImageMagick or GD.
+	 *
+	 * @param string $imageSrc Path to the temporary file
+	 * @param string $ext File extension (gif, jpg, png); de facto unused when using GD
+	 * @param string $imgDest <award ID>_<size code>, e.g. 20_l for a large image for award ID #20
+	 * @param int $thumbWidth Thumbnail image width in pixels
+	 */
 	function createThumbnail( $imageSrc, $ext, $imgDest, $thumbWidth ) {
 		global $wgUseImageMagick, $wgImageMagickConvertCommand;
 
 		list( $origWidth, $origHeight, $typeCode ) = getimagesize( $imageSrc );
+
+		$backend = new SocialProfileFileBackend( 'awards' );
+		$dir = $backend->getContainerStoragePath();
+
+		$fileBackend = $backend->getFileBackend();
+		$status = $fileBackend->prepare( [ 'dir' => $dir ] );
+
+		if ( !$status->isOK() ) {
+			throw new Exception(
+				$this->msg( 'backend-fail-internal', Status::wrap( $status )->getWikitext() )
+			);
+		}
 
 		if ( $wgUseImageMagick ) { // ImageMagick is enabled
 			if ( $origWidth < $thumbWidth ) {
 				$thumbWidth = $origWidth;
 			}
 			$thumbHeight = ( $thumbWidth * $origHeight / $origWidth );
+			$border = '';
 			if ( $thumbHeight < $thumbWidth ) {
 				$border = ' -bordercolor white -border 0x' . ( ( $thumbWidth - $thumbHeight ) / 2 );
 			}
 			if ( $typeCode == 2 ) {
 				exec(
-					$wgImageMagickConvertCommand . ' -size ' . $thumbWidth . 'x' .
+					Shell::escape( $wgImageMagickConvertCommand ) . ' -size ' . $thumbWidth . 'x' .
 					$thumbWidth . ' -resize ' . $thumbWidth . '  -quality 100 ' .
-					$border . ' ' . $imageSrc . ' ' .
-					$this->awardsUploadDirectory . '/sg_' . $imgDest . '.jpg'
+					$border . ' ' . Shell::escape( $imageSrc ) . ' ' .
+					wfTempDir() . '/sg_' . $imgDest . '.jpg'
 				);
+
+				$status = $fileBackend->quickStore( [
+					'src' => wfTempDir() . '/sg_' . $imgDest . '.jpg',
+					'dst' => $dir . '/sg_' . $imgDest . '.jpg'
+				] );
+
+				if ( !$status->isOK() ) {
+					throw new Exception(
+						$this->msg( 'backend-fail-internal', Status::wrap( $status )->getWikitext() )
+					);
+				}
 			}
 			if ( $typeCode == 1 ) {
 				exec(
-					$wgImageMagickConvertCommand . ' -size ' . $thumbWidth . 'x' .
-					$thumbWidth . ' -resize ' . $thumbWidth . ' ' . $imageSrc .
+					Shell::escape( $wgImageMagickConvertCommand ) . ' -size ' . $thumbWidth . 'x' .
+					$thumbWidth . ' -resize ' . $thumbWidth . ' ' . Shell::escape( $imageSrc ) .
 					' ' . $border . ' ' .
-					$this->awardsUploadDirectory . '/sg_' . $imgDest . '.gif'
+					wfTempDir() . '/sg_' . $imgDest . '.gif'
 				);
+
+				$status = $fileBackend->quickStore( [
+					'src' => wfTempDir() . '/sg_' . $imgDest . '.gif',
+					'dst' => $dir . '/sg_' . $imgDest . '.gif'
+				] );
+
+				if ( !$status->isOK() ) {
+					throw new Exception(
+						$this->msg( 'backend-fail-internal', Status::wrap( $status )->getWikitext() )
+					);
+				}
 			}
 			if ( $typeCode == 3 ) {
 				exec(
-					$wgImageMagickConvertCommand . ' -size ' . $thumbWidth . 'x' .
-					$thumbWidth . ' -resize ' . $thumbWidth . ' ' . $imageSrc .
-					' ' . $this->awardsUploadDirectory . '/sg_' . $imgDest . '.png'
+					Shell::escape( $wgImageMagickConvertCommand ) . ' -size ' . $thumbWidth . 'x' .
+					$thumbWidth . ' -resize ' . $thumbWidth . ' ' . Shell::escape( $imageSrc ) .
+					' ' . wfTempDir() . '/sg_' . $imgDest . '.png'
 				);
+
+				$status = $fileBackend->quickStore( [
+					'src' => wfTempDir() . '/sg_' . $imgDest . '.png',
+					'dst' => $dir . '/sg_' . $imgDest . '.png'
+				] );
+
+				if ( !$status->isOK() ) {
+					throw new Exception(
+						$this->msg( 'backend-fail-internal', Status::wrap( $status )->getWikitext() )
+					);
+				}
 			}
 		} else { // ImageMagick is not enabled, so fall back to PHP's GD library
+			$fullImage = '';
+			$ext = '';
+
 			// Get the image size, used in calculations later.
 			switch ( $typeCode ) {
 				case '1':
@@ -338,8 +436,19 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 			// Copy the thumb
 			copy(
 				$imageSrc,
-				$this->awardsUploadDirectory . '/sg_' . $imgDest . '.' . $ext
+				wfTempDir() . '/sg_' . $imgDest . '.' . $ext
 			);
+
+			$status = $fileBackend->quickStore( [
+				'src' => wfTempDir() . '/sg_' . $imgDest . '.' . $ext,
+				'dst' => $dir . '/sg_' . $imgDest . '.' . $ext
+			] );
+
+			if ( !$status->isOK() ) {
+				throw new Exception(
+					$this->msg( 'backend-fail-internal', Status::wrap( $status )->getWikitext() )
+				);
+			}
 		}
 	}
 
@@ -352,12 +461,14 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 *
 	 * @param string $saveName
 	 * @param string $tempName Full path to the temporary file
-	 * @param bool $useRename If true, doesn't check that the source file
-	 * is a PHP-managed upload temporary
+	 * @param string $ext File extension (jpg, gif or png)
+	 *
+	 * @return int
 	 */
 	function saveUploadedFile( $saveName, $tempName, $ext ) {
-		$dest = $this->awardsUploadDirectory;
+		$backend = new SocialProfileFileBackend( 'awards' );
 
+		$dest = $backend->getContainerStoragePath();
 		$this->mSavedFile = "{$dest}/{$saveName}";
 
 		$this->createThumbnail( $tempName, $ext, $this->gift_id . '_l', 75 );
@@ -365,60 +476,76 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		$this->createThumbnail( $tempName, $ext, $this->gift_id . '_m', 30 );
 		$this->createThumbnail( $tempName, $ext, $this->gift_id . '_s', 16 );
 
-		if ( $ext == 'JPG' && is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.jpg' ) ) {
+		$type = 0;
+
+		if ( $ext == 'JPG' && is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.jpg' ) ) {
 			$type = 2;
 		}
-		if ( $ext == 'GIF' && is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.gif' ) ) {
+		if ( $ext == 'GIF' && is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.gif' ) ) {
 			$type = 1;
 		}
-		if ( $ext == 'PNG' && is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.png' ) ) {
+		if ( $ext == 'PNG' && is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.png' ) ) {
 			$type = 3;
 		}
 
 		if ( $ext != 'JPG' ) {
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.jpg' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.jpg' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_s.jpg' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_s.jpg' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.jpg' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.jpg' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_m.jpg' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_m.jpg' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.jpg' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.jpg' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_ml.jpg' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_ml.jpg' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.jpg' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.jpg' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.jpg' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_l.jpg' );
 			}
 		}
 		if ( $ext != 'GIF' ) {
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.gif' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.gif' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_s.gif' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_s.gif' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.gif' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.gif' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_m.gif' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_m.gif' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.gif' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.gif' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_ml.gif' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_ml.gif' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.gif' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.gif' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.gif' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_l.gif' );
 			}
 		}
 		if ( $ext != 'PNG' ) {
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.png' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_s.png' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_s.png' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_s.png' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.png' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_m.png' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_m.png' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_m.png' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.png' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_ml.png' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_ml.png' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_ml.png' );
 			}
-			if ( is_file( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.png' ) ) {
-				unlink( $this->awardsUploadDirectory . '/sg_' . $this->gift_id . '_l.png' );
+			if ( is_file( wfTempDir() . '/sg_' . $this->gift_id . '_l.png' ) ) {
+				unlink( wfTempDir() . '/sg_' . $this->gift_id . '_l.png' );
 			}
 		}
 
-		if ( $type < 0 ) {
+		foreach ( [ 'gif', 'jpg', 'jpeg', 'png' ] as $fileExtension ) {
+			if ( $fileExtension === strtolower( $ext ) ) {
+				// Our brand new logo; skip over it in order to _not_ delete it, obviously
+			} else {
+				foreach ( [ 's', 'm', 'ml', 'l' ] as $size ) {
+					if ( $backend->fileExists( 'sg_', $this->gift_id, $size, $fileExtension ) ) {
+						$backend->getFileBackend()->quickDelete( [
+							'src' => $backend->getPath( 'sg_', $this->gift_id, $size, $fileExtension )
+						] );
+					}
+				}
+			}
+		}
+
+		if ( !$type ) {
 			throw new FatalError( $this->msg( 'filecopyerror', $tempName, /*$stash*/'' )->escaped() );
 		}
 
@@ -436,9 +563,9 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 * @param string $tempName The source temporary file to save
 	 * @return string Full path the stashed file, or false on failure
 	 */
-	function saveTempUploadedFile( $saveName, $tempName ) {
-		$archive = wfImageArchiveDir( $saveName, 'temp' );
-		$stash = $archive . '/' . gmdate( 'YmdHis' ) . '!' . $saveName;
+	private function saveTempUploadedFile( $saveName, $tempName ) {
+		$uploadPath = $this->getConfig()->get( 'UploadPath' );
+		$stash = $uploadPath . '/temp/' . gmdate( 'YmdHis' ) . '!' . $saveName;
 
 		if ( !move_uploaded_file( $tempName, $stash ) ) {
 			throw new FatalError( $this->msg( 'filecopyerror', $tempName, $stash )->escaped() );
@@ -453,7 +580,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 * Returns a key value which will be passed through a form
 	 * to pick up the path info on a later invocation.
 	 *
-	 * @return int
+	 * @return int|bool Boolean false on failure
 	 */
 	function stashSession() {
 		$stash = $this->saveTempUploadedFile(
@@ -477,9 +604,9 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 * Remove a temporarily kept file stashed by saveTempUploadedFile().
 	 */
 	function unsaveUploadedFile() {
-		MediaWiki\suppressWarnings();
+		AtEase::suppressWarnings();
 		$success = unlink( $this->mUploadTempName );
-		MediaWiki\restoreWarnings();
+		AtEase::restoreWarnings();
 		if ( !$success ) {
 			throw new FatalError( $this->msg( 'filedeleteerror', $this->mUploadTempName )->escaped() );
 		}
@@ -487,16 +614,14 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 	/**
 	 * Show some text and linkage on successful upload.
+	 *
+	 * @param int $status
 	 */
 	function showSuccess( $status ) {
-		global $wgUploadBaseUrl, $wgUploadPath;
-		$uploadPath = $wgUploadBaseUrl ? $wgUploadBaseUrl . $wgUploadPath : $wgUploadPath;
-
 		$ext = 'jpg';
-		$ts = rand();
 
-		$output = '<h2>' . $this->msg( 'ga-uploadsuccess' )->plain() . '</h2>';
-		$output .= '<h5>' . $this->msg( 'ga-imagesbelow' )->plain() . '</h5>';
+		$output = '<h2>' . $this->msg( 'ga-uploadsuccess' )->escaped() . '</h2>';
+		$output .= '<h5>' . $this->msg( 'ga-imagesbelow' )->escaped() . '</h5>';
 		if ( $status == 1 ) {
 			$ext = 'gif';
 		}
@@ -509,35 +634,36 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 		$output .= '<table class="ga-upload-success-page">
 		<tr>
-			<td class="title-cell" valign="top">' . $this->msg( 'ga-large' )->plain() . '</td>
-			<td><img src="' . $uploadPath . '/awards/sg_' . $this->gift_id . '_l.' . $ext . '?ts=' . $ts . '" alt="" /></td>
+			<td class="title-cell" valign="top">' . $this->msg( 'ga-large' )->escaped() . '</td>
+			<td>' . ( new SystemGiftIcon( $this->gift_id, 'l' ) )->getIconHTML() . '</td>
 		</tr>
 		<tr>
-			<td class="title-cell" valign="top">' . $this->msg( 'ga-mediumlarge' )->plain() . '</td>
-			<td><img src="' . $uploadPath . '/awards/sg_' . $this->gift_id . '_ml.' . $ext . '?ts=' . $ts . '" alt="" /></td>
+			<td class="title-cell" valign="top">' . $this->msg( 'ga-mediumlarge' )->escaped() . '</td>
+			<td>' . ( new SystemGiftIcon( $this->gift_id, 'ml' ) )->getIconHTML() . '</td>
 		</tr>
 		<tr>
-			<td class="title-cell" valign="top">' . $this->msg( 'ga-medium' )->plain() . '</td>
-			<td><img src="' . $uploadPath . '/awards/sg_' . $this->gift_id . '_m.' . $ext . '?ts=' . $ts . '" alt="" /></td>
+			<td class="title-cell" valign="top">' . $this->msg( 'ga-medium' )->escaped() . '</td>
+			<td>' . ( new SystemGiftIcon( $this->gift_id, 'm' ) )->getIconHTML() . '</td>
 		</tr>
 		<tr>
-			<td class="title-cell" valign="top">' . $this->msg( 'ga-small' )->plain() . '</td>
-			<td><img src="' . $uploadPath . '/awards/sg_' . $this->gift_id . '_s.' . $ext . '?ts=' . $ts . '" alt="" /></td>
+			<td class="title-cell" valign="top">' . $this->msg( 'ga-small' )->escaped() . '</td>
+			<td>' . ( new SystemGiftIcon( $this->gift_id, 's' ) )->getIconHTML() . '</td>
 		</tr>
 		<tr>
 			<td>
-				<input type="button" onclick="javascript:history.go(-1)" value="' . $this->msg( 'ga-goback' )->plain() . '" />
+				<input type="button" onclick="javascript:history.go(-1)" value="' . $this->msg( 'ga-goback' )->escaped() . '" />
 			</td>
 		</tr>';
 
 		$systemGiftManager = SpecialPage::getTitleFor( 'SystemGiftManager' );
 		$output .= $this->getLanguage()->pipeList( [
 			'<tr><td><a href="' . htmlspecialchars( $systemGiftManager->getFullURL() ) . '">' .
-				$this->msg( 'ga-back-gift-list' )->plain() . '</a>&#160;',
+				$this->msg( 'ga-back-gift-list' )->escaped() . '</a>&#160;',
 			'&#160;<a href="' . htmlspecialchars( $systemGiftManager->getFullURL( 'id=' . $this->gift_id ) ) . '">' .
-				$this->msg( 'ga-back-edit-gift' )->plain() . '</a></td></tr>'
+				$this->msg( 'ga-back-edit-gift' )->escaped() . '</a></td></tr>'
 		] );
 		$output .= '</table>';
+
 		$this->getOutput()->addHTML( $output );
 	}
 
@@ -546,10 +672,10 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	 */
 	function uploadError( $error ) {
 		$out = $this->getOutput();
-		$sub = $this->msg( 'uploadwarning' )->plain();
+		$sub = $this->msg( 'uploadwarning' )->escaped();
 		$out->addHTML( "<h2>{$sub}</h2>\n" );
 		$out->addHTML( "<h4 class='error'>{$error}</h4>\n" );
-		$out->addHTML( '<br /><input type="button" onclick="javascript:history.go(-1)" value="' . $this->msg( 'ga-goback' )->plain() . '">' );
+		$out->addHTML( '<br /><input type="button" onclick="javascript:history.go(-1)" value="' . $this->msg( 'ga-goback' )->escaped() . '">' );
 	}
 
 	/**
@@ -569,7 +695,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		}
 
 		$out = $this->getOutput();
-		$sub = $this->msg( 'uploadwarning' )->plain();
+		$sub = $this->msg( 'uploadwarning' )->escaped();
 		$out->addHTML( "<h2>{$sub}</h2>\n" );
 		$out->addHTML( "<ul class='warning'>{$warning}</ul><br />\n" );
 
@@ -589,17 +715,17 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 	<form id='uploadwarning' method='post' enctype='multipart/form-data' action='$action'>
 		<input type='hidden' name='gift_id' value=\"" . ( $this->gift_id ) . "\" />
 		<input type='hidden' name='wpIgnoreWarning' value='1' />
-		<input type='hidden' name='wpSessionKey' value=\"" . htmlspecialchars( $this->mSessionKey ) . "\" />
+		<input type='hidden' name='wpSessionKey' value=\"" . htmlspecialchars( (string)$this->mSessionKey ) . "\" />
 		<input type='hidden' name='wpUploadDescription' value=\"" . htmlspecialchars( $this->mUploadDescription ) . "\" />
 		<input type='hidden' name='wpDestFile' value=\"" . htmlspecialchars( $this->mDestFile ) . "\" />
-		<input type='hidden' name='wpWatchthis' value=\"" . htmlspecialchars( intval( $this->mWatchthis ) ) . "\" />
+		<input type='hidden' name='wpWatchthis' value=\"" . intval( $this->mWatchthis ) . "\" />
 	{$copyright}
 	<table>
 		<tr>
 
 			<tr>
 				<td align='right'>
-					<input tabindex='2' type='button' onclick=javascript:history.go(-1) value='" . $this->msg( 'ga-goback' )->plain() . "' />
+					<input tabindex='2' type='button' onclick=javascript:history.go(-1) value='" . $this->msg( 'ga-goback' )->escaped() . "' />
 				</td>
 
 			</tr>
@@ -618,22 +744,22 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 
 		$out = $this->getOutput();
 		if ( $msg != '' ) {
-			$sub = $this->msg( 'uploaderror' )->plain();
+			$sub = $this->msg( 'uploaderror' )->escaped();
 			$out->addHTML( "<h2>{$sub}</h2>\n" .
 				"<h4 class='error'>{$msg}</h4>\n" );
 		}
 
-		$ulb = $this->msg( 'uploadbtn' )->plain();
+		$ulb = $this->msg( 'uploadbtn' )->escaped();
 
 		$source = null;
 
 		if ( $wgUseCopyrightUpload ) {
 			$source = "
-	<td align='right' nowrap='nowrap'>" . $this->msg( 'filestatus' )->plain() . "</td>
+	<td align='right' nowrap='nowrap'>" . $this->msg( 'filestatus' )->escaped() . "</td>
 	<td><input tabindex='3' type='text' name=\"wpUploadCopyStatus\" value=\"" .
 	htmlspecialchars( $this->mUploadCopyStatus ) . "\" size='40' /></td>
 	</tr><tr>
-	<td align='right'>" . $this->msg( 'filesource' )->plain() . "</td>
+	<td align='right'>" . $this->msg( 'filesource' )->escaped() . "</td>
 	<td><input tabindex='4' type='text' name='wpUploadSource' id='wpUploadSource' value=\"" .
 	htmlspecialchars( $this->mUploadSource ) . "\" /></td>
 	";
@@ -644,7 +770,7 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		$output = '<table>
 			<tr>
 				<td class="title-cell">' .
-					$this->msg( 'ga-currentimage' )->plain() .
+					$this->msg( 'ga-currentimage' )->escaped() .
 				'</td>
 			</tr>
 			<tr>
@@ -656,19 +782,21 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		<br />';
 		$out->addHTML( $output );
 
+		$token = Html::hidden( 'wpEditToken', $this->getUser()->getEditToken() );
+
 		$out->addHTML( '
 	<form id="upload" method="post" enctype="multipart/form-data" action="">
 	<table>
 		<tr>
 			<td class="title-cell">' .
-				$this->msg( 'ga-file-instructions' )->escaped() . $this->msg( 'ga-choosefile' )->plain() . '<br />
+				$this->msg( 'ga-file-instructions' )->escaped() . $this->msg( 'ga-choosefile' )->escaped() . '<br />
 				<input tabindex="1" type="file" name="wpUploadFile" id="wpUploadFile" />
 			</td>
 		</tr>
 		<tr>' . $source . '</tr>
 		<tr>
-			<td>
-				<input tabindex="5" type="submit" name="wpUpload" value="' . $ulb . '" />
+			<td>' . $token .
+				'<input tabindex="5" type="submit" name="wpUpload" value="' . $ulb . '" />
 			</td>
 		</tr>
 		</table></form>' . "\n"
@@ -693,11 +821,11 @@ class SystemGiftManagerLogo extends UnlistedSpecialPage {
 		if ( $wgVerifyMimeType ) {
 			# check mime type against file extension
 			if ( !UploadBase::verifyExtension( $mime, $extension ) ) {
-				return Status::newFatal( 'uploadcorrupt' );
+				return Status::newFatal( 'filetype-mime-mismatch', $extension, $mime );
 			}
 
 			# check mime type blacklist
-			if ( isset( $wgMimeTypeBlacklist ) && !is_null( $wgMimeTypeBlacklist )
+			if ( isset( $wgMimeTypeBlacklist )
 				&& UploadBase::checkFileExtension( $mime, $wgMimeTypeBlacklist ) ) {
 				return Status::newFatal( 'badfiletype', htmlspecialchars( $mime ) );
 			}

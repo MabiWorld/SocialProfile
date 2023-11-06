@@ -1,3 +1,13 @@
+/* Hide no-JS checkboxes when the user has JavaScript enabled */
+.client-js #blast-friends-list input[type="checkbox"] {
+	display: none;
+}
+
+/* Hide "select all"/"unselect all" links for no-JS users */
+.client-nojs .blast-nav-links {
+	display: none;
+}
+
 #blast-friends-list div.blast-friend-selected,
 #blast-friends-list div.blast-foe-selected {
 	background-color: #fffca9;
@@ -9,11 +19,8 @@
 	cursor: pointer;
 	height: 17px;
 	width: 200px;
-
 	padding: 4px;
 	margin: 0 3px 3px 0;
-	overflow: hidden;
-
 }
 
 #blast-friends-list div.blast-friend-unselected,
@@ -28,7 +35,6 @@
 	width: 200px;
 	padding: 4px;
 	margin: 0 3px 3px 0;
-	overflow: hidden;
 }
 
 .board-blast-message-form {

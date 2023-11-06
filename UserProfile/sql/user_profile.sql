@@ -2,8 +2,8 @@
 -- Table structure for table `user_profile`
 --
 
-CREATE TABLE /*_*/user_profile (
-  `up_user_id` int(5) NOT NULL PRIMARY KEY default '0',
+CREATE TABLE IF NOT EXISTS /*_*/user_profile (
+  `up_actor` bigint unsigned NOT NULL PRIMARY KEY,
   `up_location_city` varchar(255) default NULL,
   `up_location_state` varchar(100) default NULL,
   `up_location_country` varchar(255) default NULL,

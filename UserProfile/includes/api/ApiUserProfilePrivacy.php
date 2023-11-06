@@ -22,31 +22,38 @@ class ApiUserProfilePrivacy extends ApiBase {
 		$method = $params['method'];
 		$fieldKey = $params['field_key'];
 		$privacy = $params['privacy'];
-		$tuid = $params['tuid'];
+
+		$targetUser = $this->getUser();
+
+		// Given that the underlying table stores info only for registered users, it
+		// makes sense to require users to be logged in to be able to use this API module
+		if ( !$targetUser->isRegistered() ) {
+			$this->dieWithError( 'exception-nologin-text', 'notloggedin' );
+		}
 
 		// Search content: for example let's search
 		if ( strlen( $fieldKey ) == 0 ) {
-			$this->dieUsage( 'No data provided', 'field_key' );
+			$this->dieWithError( new RawMessage( 'No data provided' ), 'field_key' );
 		}
 
-		if ( !$tuid ) {
-			$tuid = $this->getUser()->getId();
-		}
 		$data = [];
 
 		switch ( $method ) {
 			case 'get':
-				$data['privacy'] = SPUserSecurity::getPrivacy( $tuid, $fieldKey );
+				$data['privacy'] = SPUserSecurity::getPrivacy( $targetUser, $fieldKey );
 				break;
 
 			case 'set':
 				if ( !$privacy || !in_array( $privacy, [ 'public', 'hidden', 'friends', 'foaf' ] ) ) {
-					$this->dieUsage( 'The supplied argument for the "privacy" parameter is invalid (no such parameter/missing parameter)', 'privacy' );
+					$this->dieWithError(
+						new RawMessage( 'The supplied argument for the "privacy" parameter is invalid (no such parameter/missing parameter)' ),
+						'privacy'
+					);
 				}
 
-				SPUserSecurity::setPrivacy( $tuid, $fieldKey, $privacy );
+				SPUserSecurity::setPrivacy( $targetUser, $fieldKey, $privacy );
 
-				$data['replace'] = SPUserSecurity::renderEye( $fieldKey, $tuid );
+				$data['replace'] = SPUserSecurity::renderEye( $fieldKey, $targetUser );
 
 				break;
 		}
@@ -78,9 +85,6 @@ class ApiUserProfilePrivacy extends ApiBase {
 			],
 			'privacy' => [
 				ApiBase::PARAM_TYPE => 'string',
-			],
-			'tuid' => [
-				ApiBase::PARAM_TYPE => 'integer',
 			]
 		];
 	}

@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Jack Phoenix",
 			"LyzTyphone",
 			"Melancholie",
 			"Michawiki",
@@ -26,10 +27,10 @@
 	"user-send-message": "Sendi mesaĝon",
 	"user-send-gift": "Sendi donacon",
 	"user-contributions": "Kontribuoj",
-	"user-stats-edits": "{{PLURAL:$1|Redakto|Redaktoj}}",
-	"user-stats-votes": "{{PLURAL:$1|Voĉdono|Voĉdonoj}}",
-	"user-stats-comments": "{{PLURAL:$1|Komento|Komentoj}}",
-	"user-stats-recruits": "{{PLURAL:$1|Varbito|Varbitoj}}",
+	"user-stats-edits": "Redaktoj",
+	"user-stats-votes": "Voĉdonoj",
+	"user-stats-comments": "Komentoj",
+	"user-stats-recruits": "Varbitoj",
 	"other-info-title": "Alia informo",
 	"user-friends-title": "Amikoj",
 	"user-foes-title": "Malamikoj",
@@ -75,7 +76,6 @@
 	"user-recent-activity-user-message": "Sendis mesaĝon al",
 	"user-recent-activity-network-update": "Afiŝis penson",
 	"user-recent-system-gift": "Ricevis premion",
-	"user-profile-update-notloggedin-title": "Vi ne povas redakti vian profilon sen ensalutado",
 	"user-profile-update-saved": "Via profilo estis konservita",
 	"user-profile-update-log-section": "ŝanĝis sekcion",
 	"user-profile-default-country": "Usono",
@@ -122,13 +122,6 @@
 	"user-profile-tidbits-worstmoment": "Plej malpreferata momento de sportoj",
 	"user-profile-tidbits-favathlete": "Preferata atleto kaj kial",
 	"user-profile-tidbits-leastfavathlete": "Malplej preferata atleto kaj kialo",
-	"user-profile-sports-sport": "Sporto",
-	"user-profile-sports-title": "Redakti viajn preferatajn sportojn kaj teamojn",
-	"user-profile-sports-notloggedintitle": "Ho ve!",
-	"user-profile-sports-notloggedintext": "Vi devas ensaluti por redakti vian profilon.",
-	"user-profile-sports-teamremoved": "Via teamo estis forigita",
-	"user-profile-sports-teamsaved": "Viaj teamoj estis konservitaj",
-	"user-profile-sports-addmore": "Aldoni pliajn sportojn/teamojn",
 	"uploadavatar": "Alŝuti vian foton",
 	"user-profile-picture-yourpicture": "Via bildo",
 	"user-profile-picture-large": "Granda",
@@ -147,7 +140,7 @@
 	"user-wiki-link": "Vikia uzanto-paĝo",
 	"user-type-toggle-old": "Uzi vikian uzulpaĝon",
 	"user-type-toggle-new": "Uzi socian uzulpaĝon",
-	"user-board-login-message": "Vi devas <a href=\"$1\">ensaluti</a> afiŝi mesaĝojn al aliaj uzantoj",
+	"user-board-login-message": "Vi devas [[Special:UserLogin|ensaluti]] afiŝi mesaĝojn al aliaj uzantoj",
 	"removeavatar": "Forigi avataron",
 	"givegift": "Donaci donacon",
 	"viewgifts": "Vidi donacojn",
@@ -161,5 +154,6 @@
 	"avatarlogpage": "Protokolo pri avatara alŝutado",
 	"avatarlogpagetext": "Jen protokolo de avataraj alŝutoj de uzantoj",
 	"user-profile-picture-log-entry": "alŝutis novan avataron",
-	"user-profile-picture-log-delete-entry": "forigis avataron de $1"
+	"user-profile-picture-log-delete-entry": "forigis avataron de $1",
+	"random-users-avatars-title": "Renkonti la kolektivo"
 }

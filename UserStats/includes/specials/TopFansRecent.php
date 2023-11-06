@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
 
 class TopFansRecent extends UnlistedSpecialPage {
 
@@ -26,8 +27,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 	 * @param string|null $par Period name, i.e. weekly or monthly (or null)
 	 */
 	public function execute( $par ) {
-		global $wgMemc;
-
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$linkRenderer = $this->getLinkRenderer();
 		$out = $this->getOutput();
 		$request = $this->getRequest();
@@ -64,8 +64,8 @@ class TopFansRecent extends UnlistedSpecialPage {
 		$user_list = [];
 
 		// Try cache
-		$key = $wgMemc->makeKey( 'user_stats', $period, 'points', $realCount );
-		$data = $wgMemc->get( $key );
+		$key = $cache->makeKey( 'user_stats', $period, 'points', $realCount );
+		$data = $cache->get( $key );
 
 		if ( $data != '' ) {
 			$logger->debug( "Got top users by {period} points ({count}) from cache\n", [
@@ -80,14 +80,15 @@ class TopFansRecent extends UnlistedSpecialPage {
 				'count' => $count
 			] );
 
+			$params = [];
 			$params['ORDER BY'] = 'up_points DESC';
 			$params['LIMIT'] = $count;
 
 			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				"user_points_{$period}",
-				[ 'up_user_id', 'up_user_name', 'up_points' ],
-				[ 'up_user_id <> 0' ],
+				[ 'up_actor', 'up_points' ],
+				[ 'up_actor IS NOT NULL' ],
 				__METHOD__,
 				$params
 			);
@@ -95,7 +96,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 			$loop = 0;
 
 			foreach ( $res as $row ) {
-				$u = User::newFromId( $row->up_user_id );
+				$u = User::newFromActorId( $row->up_actor );
 				// Ensure that the user exists for real.
 				// Otherwise we'll be happily displaying entries for users that
 				// once existed by no longer do (account merging is a thing,
@@ -104,12 +105,12 @@ class TopFansRecent extends UnlistedSpecialPage {
 				// different bug with a different extension).
 				// Also ignore flagged bot accounts, no point in showing those
 				// in the top lists.
-				$exists = $u->loadFromId();
+				$u->load();
+				$exists = $u->getId() !== 0;
 
-				if ( $exists && !$u->isBlocked() && !$u->isBot() ) {
+				if ( $exists && !$u->getBlock() && !$u->isBot() ) {
 					$user_list[] = [
-						'user_id' => $row->up_user_id,
-						'user_name' => $row->up_user_name,
+						'actor' => $row->up_actor,
 						'points' => $row->up_points
 					];
 					$loop++;
@@ -120,7 +121,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 				}
 			}
 
-			$wgMemc->set( $key, $user_list, 60 * 5 );
+			$cache->set( $key, $user_list, 60 * 5 );
 		}
 
 		// Top nav bar
@@ -128,18 +129,18 @@ class TopFansRecent extends UnlistedSpecialPage {
 		$recent_title = SpecialPage::getTitleFor( 'TopUsersRecent' );
 
 		$output = '<div class="top-fan-nav">
-			<h1>' . htmlspecialchars( $this->msg( 'top-fans-by-points-nav-header' )->plain() ) . '</h1>
+			<h1>' . $this->msg( 'top-fans-by-points-nav-header' )->escaped() . '</h1>
 			<p><a href="' . htmlspecialchars( $top_title->getFullURL() ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-total-points-link' )->plain() ) . '</a></p>';
+				$this->msg( 'top-fans-total-points-link' )->escaped() . '</a></p>';
 
 		if ( $period == 'weekly' ) {
 			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=monthly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-monthly-points-link' )->plain() ) . '</a><p>
-			<p><b>' . htmlspecialchars( $this->msg( 'top-fans-weekly-points-link' )->plain() ) . '</b></p>';
+				$this->msg( 'top-fans-monthly-points-link' )->escaped() . '</a><p>
+			<p><b>' . $this->msg( 'top-fans-weekly-points-link' )->escaped() . '</b></p>';
 		} else {
-			$output .= '<p><b>' . $this->msg( 'top-fans-monthly-points-link' )->plain() . '</b><p>
+			$output .= '<p><b>' . $this->msg( 'top-fans-monthly-points-link' )->escaped() . '</b><p>
 			<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=weekly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-weekly-points-link' )->plain() ) . '</a></p>';
+				$this->msg( 'top-fans-weekly-points-link' )->escaped() . '</a></p>';
 		}
 
 		// Build nav of stats by category based on MediaWiki:Topfans-by-category
@@ -148,7 +149,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 
 		if ( !$message->isDisabled() ) {
 			$output .= '<h1 class="top-title">' .
-				htmlspecialchars( $this->msg( 'top-fans-by-category-nav-header' )->plain() ) . '</h1>';
+				$this->msg( 'top-fans-by-category-nav-header' )->escaped() . '</h1>';
 
 			$lines = explode( "\n", $message->text() );
 			foreach ( $lines as $line ) {
@@ -163,7 +164,7 @@ class TopFansRecent extends UnlistedSpecialPage {
 					// message (refs bug #30030)
 					$msgObj = $this->msg( $link_text );
 					if ( !$msgObj->isDisabled() ) {
-						$link_text = $msgObj->parse();
+						$link_text = $msgObj->text();
 					}
 
 					$output .= '<p>';
@@ -184,8 +185,12 @@ class TopFansRecent extends UnlistedSpecialPage {
 		$output .= '<div class="top-users">';
 
 		foreach ( $user_list as $user ) {
-			$user_title = Title::makeTitle( NS_USER, $user['user_name'] );
-			$avatar = new wAvatar( $user['user_id'], 'm' );
+			$u = User::newFromActorId( $user['actor'] );
+			if ( !$u ) {
+				continue;
+			}
+
+			$avatar = new wAvatar( $u->getId(), 'm' );
 			$avatarImage = $avatar->getAvatarURL();
 
 			$output .= '<div class="top-fan-row">
@@ -193,8 +198,8 @@ class TopFansRecent extends UnlistedSpecialPage {
 				<span class="top-fan">' .
 					$avatarImage .
 					$linkRenderer->makeLink(
-						$user_title,
-						$user['user_name']
+						$u->getUserPage(),
+						$u->getName()
 					) .
 				'</span>';
 

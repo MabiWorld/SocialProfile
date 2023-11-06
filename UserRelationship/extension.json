@@ -17,6 +17,8 @@
 		"UserRelationshipAlias": "UserRelationship.i18n.alias.php"
 	},
 	"AutoloadClasses": {
+		"MigrateOldUserRelationshipUserColumnsToActor": "maintenance/migrateOldUserRelationshipUserColumnsToActor.php",
+		"MigrateOldUserRelationshipRequestUserColumnsToActor": "maintenance/migrateOldUserRelationshipRequestUserColumnsToActor.php",
 		"EchoUserRelationshipPresentationModel": "includes/EchoUserRelationshipPresentationModel.php",
 		"RelationshipListLookup": "includes/RelationshipListLookup.php",
 		"RelationshipRequestCount": "includes/RelationshipRequestCount.php",
@@ -53,6 +55,12 @@
 			"scripts": "js/UserRelationship.js",
 			"dependencies": [
 				"mediawiki.util"
+			],
+			"messages": [
+				"ur-requests-added-message-friend",
+				"ur-requests-added-message-foe",
+				"ur-requests-reject-message-friend",
+				"ur-requests-reject-message-foe"
 			]
 		}
 	},

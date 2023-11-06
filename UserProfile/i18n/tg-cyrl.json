@@ -1,7 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Ibrahim"
+			"Ibrahim",
+			"ToJack"
 		]
 	},
 	"user-time-ago": "пеш",
@@ -83,7 +84,6 @@
 	"user-profile-tidbits-worstmoment": "Бадтарин лаҳзаи варзишӣ",
 	"user-profile-tidbits-favathlete": "Варзишгари дӯстдошта ва чаро",
 	"user-profile-tidbits-leastfavathlete": "Варзишгари камтар дӯстдошта ва чаро",
-	"user-profile-sports-sport": "Варзиш",
 	"uploadavatar": "Акси худро боргузорӣ кунед",
 	"user-profile-picture-yourpicture": "Акси Шумо",
 	"user-profile-picture-large": "Калон",
@@ -94,6 +94,7 @@
 	"user-profile-picture-currentimage": "Акси кунунӣ",
 	"user-profile-picture-choosepicture": "Акси худро интихоб кунед",
 	"user-profile-picture-picsize": "Акси шумо бояд jpeg, png, ё gif бошад ва бояд аз рӯи андоза хурдтар аз 100kb бошад.",
+	"user-profile-create-threshold-friend-count": "{{PLURAL:$1|рафиқ}}",
 	"user-no-images": "Ҳеҷ аксе боргузорӣ нашудааст",
 	"edit-profile-title": "Намояи худро вироиш кунед",
 	"user-page-link": "Саҳифаи Корбарӣ",

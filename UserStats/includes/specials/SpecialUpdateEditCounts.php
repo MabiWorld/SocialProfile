@@ -1,4 +1,5 @@
 <?php
+
 /**
  * A special page for updating users' point counts.
  *
@@ -13,91 +14,13 @@ class UpdateEditCounts extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * Perform the queries necessary to update the social point counts and
-	 * purge memcached entries.
-	 */
-	function updateMainEditsCount() {
-		global $wgNamespacesForEditPoints;
-
-		$out = $this->getOutput();
-
-		$whereConds = [];
-		$whereConds[] = 'rev_user <> 0';
-		// If points are given out for editing non-main namespaces, take that
-		// into account, too.
-		if (
-			isset( $wgNamespacesForEditPoints ) &&
-			is_array( $wgNamespacesForEditPoints )
-		) {
-			foreach ( $wgNamespacesForEditPoints as $pointNamespace ) {
-				$whereConds[] = 'page_namespace = ' . (int)$pointNamespace;
-			}
-		}
-
-		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select(
-			[ 'revision', 'page' ],
-			[ 'rev_user_text', 'rev_user', 'COUNT(*) AS the_count' ],
-			$whereConds,
-			__METHOD__,
-			[ 'GROUP BY' => 'rev_user_text' ],
-			[ 'page' => [ 'INNER JOIN', 'page_id = rev_page' ] ]
-		);
-
-		foreach ( $res as $row ) {
-			$user = User::newFromId( $row->rev_user );
-			$user->loadFromId();
-
-			if ( !$user->isBot() ) {
-				$editCount = $row->the_count;
-			} else {
-				$editCount = 0;
-			}
-
-			$s = $dbw->selectRow(
-				'user_stats',
-				[ 'stats_user_id' ],
-				[ 'stats_user_id' => $row->rev_user ],
-				__METHOD__
-			);
-			if ( $s === false || !$s->stats_user_id ) {
-				$dbw->insert(
-					'user_stats',
-					[
-						'stats_user_id' => $row->rev_user,
-						'stats_user_name' => $row->rev_user_text,
-						'stats_total_points' => 1000
-					],
-					__METHOD__
-				);
-			}
-			$out->addWikiMsg(
-				'updateeditcounts-updating',
-				$row->rev_user_text,
-				$editCount
-			);
-
-			$dbw->update(
-				'user_stats',
-				[ 'stats_edit_count = ' . $editCount ],
-				[ 'stats_user_id' => $row->rev_user ],
-				__METHOD__
-			);
-
-			global $wgMemc;
-			// clear stats cache for current user
-			$key = $wgMemc->makeKey( 'user', 'stats', $row->rev_user );
-			$wgMemc->delete( $key );
-		}
-	}
-
-	/**
 	 * Show the special page
 	 *
 	 * @param string|null $par
 	 */
 	public function execute( $par ) {
 		$out = $this->getOutput();
+		$request = $this->getRequest();
 
 		// Check permissions -- we must be allowed to access this special page
 		// before we can run any database queries
@@ -110,30 +33,40 @@ class UpdateEditCounts extends UnlistedSpecialPage {
 		// Set the page title, robot policies, etc.
 		$this->setHeaders();
 
-		$dbw = wfGetDB( DB_MASTER );
-		$this->updateMainEditsCount();
-
-		global $wgUserLevels;
-		$wgUserLevels = '';
-
-		$res = $dbw->select(
-			'user_stats',
-			[ 'stats_user_id', 'stats_user_name', 'stats_total_points' ],
-			[],
-			__METHOD__,
-			[ 'ORDER BY' => 'stats_user_name' ]
-		);
-
-		$x = 0;
-		foreach ( $res as $row ) {
-			$x++;
-			$stats = new UserStatsTrack(
-				$row->stats_user_id,
-				$row->stats_user_name
-			);
-			$stats->updateTotalPoints();
+		if ( $request->wasPosted() && $this->getUser()->matchEditToken( $request->getVal( 'wpEditToken' ) ) ) {
+			$updater = new UserStatsUpdater();
+			$updater->updateMainEditsCount( [ $this, 'reportProgress' ] );
+			$count = $updater->updateTotalPoints();
+			$out->addWikiMsg( 'updateeditcounts-updated', $count );
+		} else {
+			$out->addHTML( $this->displayForm() );
 		}
-
-		$out->addWikiMsg( 'updateeditcounts-updated', $x );
 	}
+
+	/**
+	 * Prints each user that gets their edit count updated
+	 *
+	 * @param string $userName User name
+	 * @param int $editCount Updated edit count
+	 */
+	public function reportProgress( $userName, $editCount ) {
+		$out = $this->getOutput();
+		$out->addWikiMsg( 'updateeditcounts-updating', $userName, $editCount );
+	}
+
+	/**
+	 * Render the confirmation form
+	 *
+	 * @return string HTML
+	 */
+	private function displayForm() {
+		$form = '<form method="post" name="update-edit-counts" action="">';
+		$form .= $this->msg( 'updateeditcounts-confirm' )->escaped();
+		$form .= '<br />';
+		$form .= Html::hidden( 'wpEditToken', $this->getUser()->getEditToken() );
+		$form .= Html::submitButton( $this->msg( 'htmlform-submit' )->text(), [ 'name' => 'wpSubmit' ] );
+		$form .= '</form>';
+		return $form;
+	}
+
 }

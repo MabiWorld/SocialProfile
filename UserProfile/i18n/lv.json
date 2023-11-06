@@ -1,7 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
-			"GreenZeb"
+			"GreenZeb",
+			"Jack Phoenix",
+			"Xil"
 		]
 	},
 	"editprofile": "Rediģēt citu lietotāju profilus",
@@ -22,9 +24,9 @@
 	"user-send-message": "Nosūtīt ziņu",
 	"user-send-gift": "Nosūtīt dāvanu",
 	"user-contributions": "Devums",
-	"user-stats-edits": "{{PLURAL:$1|izmaiņa|izmaiņas}}",
-	"user-stats-votes": "{{PLURAL:$1|Balss|Balsis}}",
-	"user-stats-comments": "{{PLURAL:$1|Komentārs|Komentāri}}",
+	"user-stats-edits": "Izmaiņas",
+	"user-stats-votes": "Balsis",
+	"user-stats-comments": "Komentāri",
 	"other-info-title": "Cita informācija",
 	"user-friends-title": "Draugi",
 	"user-foes-title": "Ienaidnieki",
@@ -101,5 +103,6 @@
 	"user-wiki-link": "Vikipēdijas lietotājlapa",
 	"user-type-toggle-old": "Izmantot Vikipēdijas lietotājlapu",
 	"user-type-toggle-new": "Izmantot sociālo lietotājlapu",
-	"user-board-login-message": "Jums ir jābūt <a href=\"$1\">iegājušam</a>, lai sūtītu ziņojumus citiem lietotājiem"
+	"user-board-login-message": "Jums ir jābūt [[Special:UserLogin|iegājušam]], lai sūtītu ziņojumus citiem lietotājiem",
+	"random-users-avatars-title": "Iepazīsti kopienu"
 }

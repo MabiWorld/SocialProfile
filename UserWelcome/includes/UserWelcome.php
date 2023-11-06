@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * UserWelcome extension
  * Adds <welcomeUser/> tag to display user-specific social information
@@ -17,26 +20,41 @@ class UserWelcome {
 	 *
 	 * @param Parser $parser
 	 */
-	public static function onParserFirstCallInit( &$parser ) {
+	public static function onParserFirstCallInit( Parser $parser ) {
 		$parser->setHook( 'welcomeUser', [ __CLASS__, 'getWelcomeUser' ] );
 	}
 
 	public static function getWelcomeUser( $input, $args, $parser ) {
 		$parser->getOutput()->updateCacheExpiry( 0 );
-		$parser->getOutput()->addModuleStyles( 'ext.socialprofile.userwelcome.css' );
+		$parser->getOutput()->addModuleStyles( [ 'ext.socialprofile.userwelcome.css' ] );
 		// This is so stupid. The callback to onParserFirstCallInit() is
 		// *always* (assumed to be) static even if you don't declare it as such.
 		// So obviously using $this in a static function fails...grumble grumble.
-		$uw = new UserWelcome;
+		if ( method_exists( $parser, 'getUserIdentity' ) ) {
+			// MW 1.36+
+			$user = MediaWikiServices::getInstance()
+				->getUserFactory()->newFromUserIdentity( $parser->getUserIdentity() );
+		} else {
+			// @phan-suppress-next-line PhanUndeclaredMethod
+			$user = $parser->getUser();
+		}
+		$uw = new UserWelcome( $user );
 		$output = $uw->getWelcome();
 		return $output;
 	}
 
+	/** @var User */
+	private $user;
+
+	public function __construct( User $user ) {
+		$this->user = $user;
+	}
+
 	function getWelcome() {
-		global $wgUser, $wgLang;
+		global $wgLang;
 
 		// Get stats and user level
-		$stats = new UserStats( $wgUser->getId(), $wgUser->getName() );
+		$stats = new UserStats( $this->user );
 		$stats_data = $stats->getUserStats();
 		$user_level = new UserLevel( $stats_data['points'] );
 
@@ -45,35 +63,35 @@ class UserWelcome {
 		$avatar_link = SpecialPage::getTitleFor( 'UploadAvatar' );
 
 		// Make an avatar
-		$avatar = new wAvatar( $wgUser->getId(), 'l' );
+		$avatar = new wAvatar( $this->user->getId(), 'l' );
 
 		// Profile top images/points
 		$output = '<div class="mp-welcome-logged-in">
-		<div class="mp-welcome-header">' . wfMessage( 'mp-welcome-logged-in', $wgUser->getName() )->parse() . '</div>
+		<div class="mp-welcome-header">' . wfMessage( 'mp-welcome-logged-in', $this->user->getName() )->parse() . '</div>
 		<div class="mp-welcome-image">
-		<a href="' . htmlspecialchars( $wgUser->getUserPage()->getFullURL() ) . '" rel="nofollow">' .
+		<a href="' . htmlspecialchars( $this->user->getUserPage()->getFullURL() ) . '" rel="nofollow">' .
 			$avatar->getAvatarURL() . '</a>';
-		if ( $wgUser->isLoggedIn() ) {
+		if ( $this->user->isRegistered() ) {
 			$links = [];
 
 			if ( $avatar->isDefault() ) {
 				$uploadOrEditMsg = 'mp-welcome-upload';
 				$links[] = '<a href="' . htmlspecialchars( $avatar_link->getFullURL() ) . '" rel="nofollow">' .
-					wfMessage( $uploadOrEditMsg )->plain() .
+					wfMessage( $uploadOrEditMsg )->escaped() .
 				'</a>';
 			} else {
 				$uploadOrEditMsg = 'edit';
 				$links[] = '<a href="' . htmlspecialchars( $avatar_link->getFullURL() ) . '" rel="nofollow">' .
-					wfMessage( $uploadOrEditMsg )->plain() .
+					wfMessage( $uploadOrEditMsg )->escaped() .
 				'</a>';
 
-				if ( $wgUser->isAllowed( 'avatarremove' ) ) {
-					$removeAvatarURL = SpecialPage::getTitleFor( 'RemoveAvatar', $wgUser->getName() )->getFullURL();
+				if ( $this->user->isAllowed( 'avatarremove' ) ) {
+					$removeAvatarURL = SpecialPage::getTitleFor( 'RemoveAvatar', $this->user->getName() )->getFullURL();
 				} else {
 					$removeAvatarURL = SpecialPage::getTitleFor( 'RemoveAvatar' )->getFullURL();
 				}
 				$links[] = '<a href="' . htmlspecialchars( $removeAvatarURL ) . '" rel="nofollow">' .
-					wfMessage( 'user-profile-remove-avatar' )->text() . '</a>';
+					wfMessage( 'user-profile-remove-avatar' )->escaped() . '</a>';
 			}
 
 			$output .= '<div>';
@@ -99,10 +117,10 @@ class UserWelcome {
 					<br />'
 					. wfMessage(
 						'mp-welcome-needed-points',
-						htmlspecialchars( $level_link->getFullURL() ),
+						$level_link->getPrefixedText(),
 						$user_level->getNextLevelName(),
 						$wgLang->formatNum( $user_level->getPointsNeededToAdvance() )
-					)->text() .
+					)->parse() .
 				'</div>
 			</div>';
 		}
@@ -121,11 +139,13 @@ class UserWelcome {
 
 		$output = '<div class="mp-requests">';
 		if ( $requests ) {
-			$output .= '<h3>' . wfMessage( 'mp-requests-title' )->plain() . '</h3>
-			<div class="mp-requests-message">
-				' . wfMessage( 'mp-requests-message' )->plain() . "
-			</div>
-			$requests";
+			$output .= '<div class="mp-requests">
+				<h3>' . wfMessage( 'mp-requests-title' )->plain() . '</h3>
+				<div class="mp-requests-message">
+					' . wfMessage( 'mp-requests-message' )->plain() . "
+				</div>
+				$requests
+			</div>";
 		} else {
 			$output .= '<div class="mp-requests-message mp-no-requests-message">
 				' . wfMessage( 'mp-no-requests-message' )->plain() . "
@@ -136,9 +156,9 @@ class UserWelcome {
 	}
 
 	function getRelationshipRequestLink() {
-		global $wgUser, $wgMemc;
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$requestCount = new RelationshipRequestCount( $cache, $this->user );
 
-		$requestCount = new RelationshipRequestCount( $wgMemc, $wgUser->getId() );
 		$friendRequestCount = $requestCount->setFriends()->get();
 		$foeRequestCount = $requestCount->setFoes()->get();
 
@@ -170,17 +190,19 @@ class UserWelcome {
 	}
 
 	function getNewGiftLink() {
-		global $wgUser, $wgMemc;
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
-		$userGiftCount = new UserGiftCount( $wgMemc, $wgUser->getId() );
+		$userGiftCount = new UserGiftCount( $cache, $this->user );
+
 		$giftCount = $userGiftCount->get();
 
-		$gifts_title = SpecialPage::getTitleFor( 'ViewGifts' );
 		$output = '';
 
 		if ( $giftCount > 0 ) {
 			$userActivityIcon = new UserActivityIcon( 'gift_rec' );
 			$icon = $userActivityIcon->getIconHTML();
+
+			$gifts_title = SpecialPage::getTitleFor( 'ViewGifts' );
 
 			$output .= '<p>' . $icon .
 				'<span class="profile-on"><a href="' . htmlspecialchars( $gifts_title->getFullURL() ) . '" rel="nofollow">'
@@ -193,17 +215,17 @@ class UserWelcome {
 	}
 
 	function getNewSystemGiftLink() {
-		global $wgUser, $wgMemc;
-
-		$systemGiftCount = new SystemGiftCount( $wgMemc, $wgUser->getId() );
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$systemGiftCount = new SystemGiftCount( $cache, $this->user );
 		$giftCount = $systemGiftCount->get();
 
-		$gifts_title = SpecialPage::getTitleFor( 'ViewSystemGifts' );
 		$output = '';
 
 		if ( $giftCount > 0 ) {
 			$userActivityIcon = new UserActivityIcon( 'system_gift' );
 			$icon = $userActivityIcon->getIconHTML();
+
+			$gifts_title = SpecialPage::getTitleFor( 'ViewSystemGifts' );
 
 			$output .= '<p>' . $icon .
 				'<span class="profile-on"><a href="' . htmlspecialchars( $gifts_title->getFullURL() ) . '" rel="nofollow">'
@@ -216,9 +238,9 @@ class UserWelcome {
 	}
 
 	function getNewMessagesLink() {
-		global $wgUser, $wgMemc;
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$messageCount = new UserBoardMessageCount( $cache, $this->user );
 
-		$messageCount = new UserBoardMessageCount( $wgMemc, $wgUser->getId() );
 		$newMessages = $messageCount->get();
 		$output = '';
 
@@ -229,7 +251,7 @@ class UserWelcome {
 			$board_link = SpecialPage::getTitleFor( 'UserBoard' );
 			$output .= '<p>' . $icon .
 				'<span class="profile-on"><a href="' . htmlspecialchars( $board_link->getFullURL() ) . '" rel="nofollow">'
-					. wfMessage( 'mp-request-new-message' )->plain() .
+					. wfMessage( 'mp-request-new-message' )->escaped() .
 				'</a></span>
 			</p>';
 		}

@@ -3,8 +3,8 @@
 --
 
 CREATE TABLE /*_*/user_stats (
-  `stats_user_id` int(11) NOT NULL default '0' PRIMARY KEY,
-  `stats_user_name` varchar(255) NOT NULL default '',
+  `stats_id` int unsigned NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  `stats_actor` bigint unsigned NOT NULL,
   `stats_user_image_count` int(11) NOT NULL default '0',
   `stats_comment_count` int(11) NOT NULL default '0',
   `stats_comment_score` int(11) NOT NULL default '0',
@@ -30,8 +30,6 @@ CREATE TABLE /*_*/user_stats (
   `stats_weekly_winner_count` int(11) NOT NULL default '0',
   `stats_monthly_winner_count` int(11) NOT NULL default '0',
   `stats_total_points` int(20) default '0',
-  `stats_overall_rank` int(11) NOT NULL default '0',
-  `up_complete` int(5) default NULL,
   `user_board_count` int(5) default '0',
   `user_board_sent` int(5) default '0',
   `user_board_count_priv` int(5) default '0',

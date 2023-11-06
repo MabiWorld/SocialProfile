@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * A special page to generate the report of the users who earned the most
  * points during the past week or month. This is the only way to update the
@@ -30,9 +33,6 @@ class GenerateTopUsersReport extends SpecialPage {
 	 * @param string $period Either weekly or monthly
 	 */
 	public function execute( $period ) {
-		global $wgContLang, $wgUser;
-		global $wgUserStatsPointValues;
-
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 		$user = $this->getUser();
@@ -44,8 +44,9 @@ class GenerateTopUsersReport extends SpecialPage {
 		$this->checkReadOnly();
 
 		// Blocked through Special:Block? Tough luck.
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
 		// Set the page title, robot policy, etc.
@@ -59,6 +60,55 @@ class GenerateTopUsersReport extends SpecialPage {
 		if ( !$period || ( $period != 'weekly' && $period != 'monthly' ) ) {
 			$period = 'weekly';
 		}
+
+		if ( $request->wasPosted() && $user->matchEditToken( $request->getVal( 'wpEditToken' ) ) ) {
+			$this->generateReport( $period );
+		} else {
+			$out->addHTML( $this->displayForm( $period ) );
+		}
+	}
+
+	/**
+	 * Render the confirmation form
+	 *
+	 * @param string $period Either weekly or monthly
+	 * @return string HTML
+	 */
+	private function displayForm( $period ) {
+		$form = '<form method="post" name="generate-top-users-report-form" action="">';
+		// For grep: generatetopusersreport-confirm-monthly, generatetopusersreport-confirm-weekly
+		$form .= $this->msg( 'generatetopusersreport-confirm-' . $period )->escaped();
+		$form .= '<br />';
+		$form .= Html::hidden( 'period', $period ); // not sure if this is strictly needed but paranoia
+		$form .= Html::hidden( 'wpEditToken', $this->getUser()->getEditToken() );
+		$form .= Html::submitButton( $this->msg( 'htmlform-submit' )->text(), [ 'name' => 'wpSubmit' ] );
+		$form .= '</form>';
+		return $form;
+	}
+
+	/**
+	 * Actually generate the report.
+	 *
+	 * Includes:
+	 * -calculating the winners
+	 * -updating the relevant stats tables in the DB with new data
+	 * -generating the on-wiki page
+	 *
+	 * @todo This could probably be made more modular and reusable in general
+	 *  by using Status or StatusValue objects or somesuch instead of directly
+	 *  outputting HTML via OutputPage. Something to work on a rainy day...
+	 *
+	 * @suppress SecurityCheck-SQLInjection phan can't tell that we only allow 'monthly' or 'weekly' as $period
+	 * @param string $period Either weekly or monthly
+	 */
+	private function generateReport( $period ) {
+		global $wgUserStatsPointValues;
+
+		$out = $this->getOutput();
+		$request = $this->getRequest();
+		$user = $this->getUser();
+
+		$contLang = MediaWiki\MediaWikiServices::getInstance()->getContentLanguage();
 
 		// Make sure that we are actually going to give out some extra points
 		// for weekly and/or monthly wins, depending on which report we're
@@ -82,11 +132,11 @@ class GenerateTopUsersReport extends SpecialPage {
 		$user_count = $request->getInt( 'user_count', 10 );
 
 		if ( $period == 'weekly' ) {
-			$period_title = $wgContLang->date( wfTimestamp( TS_MW, strtotime( '-1 week' ) ) ) .
-				'-' . $wgContLang->date( wfTimestampNow() );
+			$period_title = $contLang->date( wfTimestamp( TS_MW, strtotime( '-1 week' ) ) ) .
+				'-' . $contLang->date( wfTimestampNow() );
 		} elseif ( $period == 'monthly' ) {
 			$date = getdate(); // It's a PHP core function
-			$period_title = $wgContLang->getMonthName( $date['mon'] ) .
+			$period_title = $contLang->getMonthName( $date['mon'] ) .
 				' ' . $date['year'];
 		}
 
@@ -94,7 +144,7 @@ class GenerateTopUsersReport extends SpecialPage {
 		// Query the appropriate points table
 		$res = $dbw->select(
 			"user_points_{$period}",
-			[ 'up_user_id', 'up_user_name', 'up_points' ],
+			[ 'up_actor', 'up_points' ],
 			[],
 			__METHOD__,
 			[ 'ORDER BY' => 'up_points DESC', 'LIMIT' => $user_count ]
@@ -107,7 +157,7 @@ class GenerateTopUsersReport extends SpecialPage {
 		$users = [];
 
 		// Initial run is a special case
-		if ( $dbw->numRows( $res ) <= 0 ) {
+		if ( $res->numRows() <= 0 ) {
 			// For the initial run, everybody's a winner!
 			// Yes, I know that this isn't ideal and I'm sorry about that.
 			// The original code just wouldn't work if the first query
@@ -115,7 +165,7 @@ class GenerateTopUsersReport extends SpecialPage {
 			// limitation.
 			$res = $dbw->select(
 				'user_stats',
-				[ 'stats_user_id', 'stats_user_name', 'stats_total_points' ],
+				[ 'stats_actor', 'stats_total_points' ],
 				[],
 				__METHOD__,
 				[
@@ -136,8 +186,7 @@ class GenerateTopUsersReport extends SpecialPage {
 				$last_total = $row->stats_total_points;
 				$x++;
 				$users[] = [
-					'user_id' => $row->stats_user_id,
-					'user_name' => $row->stats_user_name,
+					'actor' => $row->stats_actor,
 					'points' => $row->stats_total_points,
 					'rank' => $rank
 				];
@@ -155,8 +204,7 @@ class GenerateTopUsersReport extends SpecialPage {
 				$last_total = $row->up_points;
 				$x++;
 				$users[] = [
-					'user_id' => $row->up_user_id,
-					'user_name' => $row->up_user_name,
+					'actor' => $row->up_actor,
 					'points' => $row->up_points,
 					'rank' => $rank
 				];
@@ -167,17 +215,21 @@ class GenerateTopUsersReport extends SpecialPage {
 		$winners = '';
 
 		if ( !empty( $users ) ) {
-			$localizedUserNS = $wgContLang->getNsText( NS_USER );
+			$localizedUserNS = $contLang->getNsText( NS_USER );
 			foreach ( $users as $user ) {
 				if ( $user['rank'] == 1 ) {
 					// Mark the user ranked #1 as the "winner" for the given
 					// period
-					$stats = new UserStatsTrack( $user['user_id'], $user['user_name'] );
+					$stats = new UserStatsTrack( $user['actor'] );
 					$stats->incStatField( "points_winner_{$period}" );
 					if ( $winners ) {
 						$winners .= ', ';
 					}
-					$winners .= "[[{$localizedUserNS}:{$user['user_name']}|{$user['user_name']}]]";
+					$actorUser = User::newFromActorId( $user['actor'] );
+					if ( !$actorUser ) {
+						continue;
+					}
+					$winners .= "[[{$localizedUserNS}:{$actorUser->getName()}|{$actorUser->getName()}]]";
 					$winner_count++;
 				}
 			}
@@ -196,86 +248,122 @@ class GenerateTopUsersReport extends SpecialPage {
 			"user-stats-{$period}-win-congratulations"
 		)->numParams(
 			$winner_count,
-			$wgContLang->formatNum( $wgUserStatsPointValues["points_winner_{$period}"] )
+			$contLang->formatNum( $wgUserStatsPointValues["points_winner_{$period}"] )
 		)->inContentLanguage()->parse() . "\n\n";
 		$pageContent .= "=={$winners}==\n\n<br />\n";
 
 		$pageContent .= '==' . $this->msg( 'user-stats-full-top' )->numParams(
-			$wgContLang->formatNum( $user_count ) )->inContentLanguage()->parse() . "==\n\n";
+			$contLang->formatNum( $user_count ) )->inContentLanguage()->parse() . "==\n\n";
 
 		foreach ( $users as $user ) {
-			$userTitle = Title::makeTitle( NS_USER, $user['user_name'] );
+			$u = User::newFromActorId( $user['actor'] );
+			if ( !$u ) {
+				continue;
+			}
+
 			$pageContent .= '{{int:user-stats-report-row|' .
-				$wgContLang->formatNum( $user['rank'] ) . '|' .
-				$user['user_name'] . '|' .
-				$wgContLang->formatNum( $user['points'] ) . "}}\n\n";
+				$contLang->formatNum( $user['rank'] ) . '|' .
+				$u->getName() . '|' .
+				$contLang->formatNum( $user['points'] ) . "}}\n\n";
 
 			$output .= "<div class=\"top-fan-row\">
 			<span class=\"top-fan-num\">{$user['rank']}</span><span class=\"top-fan\"> <a href='" .
-				htmlspecialchars( $userTitle->getFullURL() ) . "' >" . htmlspecialchars( $user['user_name'] ) . "</a>
+				htmlspecialchars( $u->getUserPage()->getFullURL() ) . "' >" . htmlspecialchars( $u->getName() ) . "</a>
 			</span>";
 
 			$output .= '<span class="top-fan-points">' . $this->msg(
 				'user-stats-report-points',
-				$wgContLang->formatNum( $user['points'] )
+				$contLang->formatNum( $user['points'] )
 			)->inContentLanguage()->parse() . '</span>
 		</div>';
 		}
-
-		// Make the edit as MediaWiki default
-		$oldUser = $wgUser;
-		$wgUser = User::newFromName( 'MediaWiki default' );
-		// If the user does not exist, crate it
-		if ( $wgUser->getId() === 0 ) {
-			$wgUser = User::newSystemUser( 'MediaWiki default', [ 'steal' => true ] );
-		}
-		$wgUser->addGroup( 'bot' );
-
-		// Add a note to the page that it was automatically generated
-		$pageContent .= "\n\n''" . $this->msg( 'user-stats-report-generation-note' )->parse() . "''\n\n";
 
 		// Create the Title object that represents the report page
 		// For grep: user-stats-report-weekly-page-title, user-stats-report-monthly-page-title
 		$title = Title::makeTitleSafe(
 			NS_PROJECT,
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable $period_title is set
 			$this->msg( "user-stats-report-{$period}-page-title", $period_title )->inContentLanguage()->plain()
 		);
 
-		$article = new Article( $title );
+		if ( method_exists( MediaWikiServices::class, 'getWikiPageFactory' ) ) {
+			// MW 1.36+
+			$page = MediaWikiServices::getInstance()->getWikiPageFactory()->newFromTitle( $title );
+		} else {
+			// @phan-suppress-next-line PhanUndeclaredStaticMethod
+			$page = WikiPage::factory( $title );
+		}
 		// If the article doesn't exist, create it!
 		// @todo Would there be any point in updating a pre-existing article?
 		// I think not, but...
-		if ( !$article->exists() ) {
-			// For grep: user-stats-report-weekly-edit-summary, user-stats-report-monthly-edit-summary
-			$article->doEditContent(
-				ContentHandler::makeContent( $pageContent, $title ),
-				$this->msg( "user-stats-report-{$period}-edit-summary" )->inContentLanguage()->plain()
-			);
-			$date = date( 'Y-m-d H:i:s' );
-			// Archive points from the weekly/monthly table into the archive
-			// table
-			$dbw->insertSelect(
-				'user_points_archive',
-				"user_points_{$period}",
-				[
-					'up_user_name' => 'up_user_name',
-					'up_user_id' => 'up_user_id',
-					'up_points' => 'up_points',
-					'up_period' => ( ( $period == 'weekly' ) ? 1 : 2 ),
-					'up_date' => $dbw->addQuotes( $date )
-				],
-				'*',
-				__METHOD__
-			);
-
-			// Clear the current point table to make way for the next period
-			$res = $dbw->delete( "user_points_{$period}", '*', __METHOD__ );
+		if ( !$page->exists() ) {
+			$this->createReportPage( $page, $title, $period, $pageContent );
 		}
-
-		// Switch the user back
-		$wgUser = $oldUser;
 
 		$output .= '</div>'; // .top-users
 		$out->addHTML( $output );
 	}
+
+	/**
+	 * Make the edit
+	 *
+	 * @param WikiPage $page
+	 * @param Title $title
+	 * @param string $period
+	 * @param string $pageContent
+	 */
+	private function createReportPage( WikiPage $page, Title $title, $period, $pageContent ) {
+		// Grab a user object to make the edit as
+		$user = User::newFromName( 'MediaWiki default' );
+		if ( $user->getId() === 0 ) {
+			$user = User::newSystemUser( 'MediaWiki default', [ 'steal' => true ] );
+		}
+
+		// Add a note to the page that it was automatically generated
+		$pageContent .= "\n\n''" . $this->msg( 'user-stats-report-generation-note' )->parse() . "''\n\n";
+
+		// Make the edit as MediaWiki default
+		// For grep: user-stats-report-weekly-edit-summary, user-stats-report-monthly-edit-summary
+		$summary = $this->msg( "user-stats-report-{$period}-edit-summary" )->inContentLanguage()->plain();
+		$contentObj = ContentHandler::makeContent( $pageContent, $title );
+		if ( method_exists( $page, 'doUserEditContent' ) ) {
+			// MW 1.36+
+			$page->doUserEditContent(
+				$contentObj,
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable There's no way this can be null...
+				$user,
+				$summary,
+				EDIT_NEW | EDIT_FORCE_BOT
+			);
+		} else {
+			// @phan-suppress-next-line PhanUndeclaredMethod Removed in MW 1.41
+			$page->doEditContent(
+				$contentObj,
+				$summary,
+				EDIT_NEW | EDIT_FORCE_BOT,
+				false, /* $originalRevId */
+				$user
+			);
+		}
+
+		$date = date( 'Y-m-d H:i:s' );
+		// Archive points from the weekly/monthly table into the archive table
+		$dbw = wfGetDB( DB_MASTER );
+		$dbw->insertSelect(
+			'user_points_archive',
+			"user_points_{$period}",
+			[
+				'up_actor' => 'up_actor',
+				'up_points' => 'up_points',
+				'up_period' => ( ( $period == 'weekly' ) ? 1 : 2 ),
+				'up_date' => $dbw->addQuotes( $dbw->timestamp( $date ) )
+			],
+			[ '*' ],
+			__METHOD__
+		);
+
+		// Clear the current point table to make way for the next period
+		$res = $dbw->delete( "user_points_{$period}", '*', __METHOD__ );
+	}
+
 }

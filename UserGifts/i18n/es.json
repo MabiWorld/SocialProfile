@@ -1,7 +1,10 @@
 {
 	"@metadata": {
 		"authors": [
+			"Ciencia Al Poder",
 			"Crazymadlover",
+			"DiegoAmbrocio",
+			"Jack Phoenix",
 			"Mor"
 		]
 	},
@@ -19,7 +22,7 @@
 	"g-add-message": "Agregar un mensaje",
 	"g-back-edit-gift": "Regresar a editar este regalo",
 	"g-back-gift-list": "Regresar a lista de regalos",
-	"g-back-link": "< Regresar a la página de $1",
+	"g-back-link": "&lt; Regresar a la página de $1",
 	"g-choose-file": "Escoger archivo:",
 	"g-count": "$1 tiene $2 {{PLURAL:$2|regalo|regalos}}.",
 	"g-create-gift": "Crear regalo",
@@ -30,12 +33,12 @@
 	"g-error-do-not-own": "No te pertenece este regalo",
 	"g-error-message-blocked": "Estás actualmente bloqueado y no puedes dar regalos",
 	"g-error-message-invalid-link": "El vínculo que usted han ingresado es inválido.",
-	"g-error-message-login": "Tienes que iniciar sesión para dar regalos",
+	"g-error-message-login": "Tienes que [[Special:UserLogin|iniciar sesión]] para dar regalos.",
 	"g-error-message-no-user": "El usuario que estás tratando de ver no existe.",
 	"g-error-message-to-yourself": "No puede darse un regalo a sí mismo.",
 	"g-error-title": "Woops, tomó un turno erróneo!",
 	"g-file-instructions": "La imagen debe ser jpeg, png o gif (no gif animado), y debe tener menos de 100kb de tamaño.",
-	"g-from": "de <a href=\"$1\">$2</a>",
+	"g-from": "de [[User:$1|$1]]",
 	"g-gift": "regalo",
 	"g-gift-name": "nombre de regalo",
 	"g-give-gift": "Dar regalo",
@@ -45,12 +48,11 @@
 	"g-give-enter-friend-title": "Si usted sabe el nombre del usuario, escríbalo debajo",
 	"g-given": "Este regalo ha sido enviado $1 {{PLURAL:$1|vez|veces}}",
 	"g-give-list-friends-title": "Seleccione de su lista de amigos",
-	"g-give-list-select": "seleccione un amigo",
 	"g-give-separator": "o",
 	"g-give-no-user-message": "Regalos y premios son una gran forma de reconocer a sus amigos!",
 	"g-give-no-user-title": "A quién le gustaría dar un regalo?",
 	"g-give-to-user-title": "Enviar el regalo \"$1\" a $2",
-	"g-give-to-user-message": "Desea dar $1 un <a href=\"$2\">regalo diferente</a>?",
+	"g-give-to-user-message": "Desea dar $1 un [[Special:GiveGift/$1|regalo diferente]]?",
 	"g-go-back": "Regrese",
 	"g-imagesbelow": "Debajo están sus imágenes que serán usadas en el sitio",
 	"g-large": "Grande",
@@ -77,6 +79,12 @@
 	"g-viewgiftlist": "Ver lista de regalos",
 	"g-your-profile": "Su perfil",
 	"gift_received_subject": "$1 le ha enviado el regalo $2 en {{SITENAME}}!",
-	"gift_received_body": "Hola $1.\n\n$2 acaba de enviarte el regalo $3 en {{SITENAME}}.\n\nDeseas leer la nota $2 que te dejó y ver tu regalo?  Haz click en el vínculo de abajo:\n\n$4\n\nEsperamos que te guste!\n\nGracias,\n\n\nEl equipo {{SITENAME}}\n\n---\n\nHey, Deseas no recibir más correos electrónicos de nosotros?\n\nHaz click en $5\ny cambia tus configuraciones para deshabilitar notificaciones por correo electrónico.",
+	"gift_received_body_html": "Hola $1.\n\n$2 acaba de enviarte el regalo $3 en {{SITENAME}}.\n\n¿Deseas leer la nota que $2 te dejó y ver tu regalo?  Haz clic en el vínculo a continuación:\n\n[[Special:ViewGifts]]\n\n¡Esperamos que te guste!\n\nGracias,\n\n\nEl equipo {{SITENAME}}\n\n---\n\n¿Deseas dejar de recibir correos electrónicos de nosotros?\n\nHaz clic en [[Special:UpdateProfile]]\ny cambia tus configuraciones para deshabilitar notificaciones por correo electrónico.",
+	"gift_received_body": "Hola $1.\n\n$2 acaba de enviarte el regalo $3 en {{SITENAME}}.\n\n¿Deseas leer la nota que $2 te dejó y ver tu regalo?  Haz clic en el vínculo a continuación:\n\n$4\n\n¡Esperamos que te guste!\n\nGracias,\n\n\nEl equipo {{SITENAME}}\n\n---\n\n¿Deseas dejar de recibir correos electrónicos de nosotros?\n\nHaz clic en $5\ny cambia tus configuraciones para deshabilitar notificaciones por correo electrónico.",
+	"echo-category-title-social-gift": "Regalos",
+	"echo-pref-tooltip-social-gift": "Notificarme cuando alguien me envíe un regalo.",
+	"notification-social-gift-send-no-message": "$1 acaba de enviar un regalo para ti: $2.",
+	"notification-social-gift-send-with-message": "$1 acaba de enviar un regalo para ti: $2.<br /><br />''$3''",
+	"notification-social-gift-send-bundle": "{{PLURAL:$1|Una persona te ha|$1 personas te han}} enviado regalos.",
 	"right-giftadmin": "Crear nuevo y editar regalos existentes"
 }

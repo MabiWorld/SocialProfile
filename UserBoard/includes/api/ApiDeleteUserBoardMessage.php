@@ -8,7 +8,7 @@ class ApiDeleteUserBoardMessage extends ApiBase {
 		$user = $this->getUser();
 		$readOnlyMode = MediaWikiServices::getInstance()->getReadOnlyMode();
 
-		$messageId = $main->getVal( 'id' );
+		$messageId = (int)$main->getVal( 'id' );
 
 		// Don't allow deleting messages when the database is locked for some reason
 		if ( $readOnlyMode->isReadOnly() ) {
@@ -16,9 +16,9 @@ class ApiDeleteUserBoardMessage extends ApiBase {
 			return true;
 		}
 
-		$b = new UserBoard();
+		$b = new UserBoard( $user );
 		if (
-			$b->doesUserOwnMessage( $user->getId(), $messageId ) ||
+			$b->doesUserOwnMessage( $user, $messageId ) ||
 			$user->isAllowed( 'userboard-delete' )
 		) {
 			$b->deleteMessage( $messageId );

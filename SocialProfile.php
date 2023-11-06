@@ -32,13 +32,42 @@ $wgMessagesDirs['SocialProfileUserProfile'] = __DIR__ . '/UserProfile/i18n';
 $wgExtensionMessagesFiles['SocialProfileNamespaces'] = __DIR__ . '/SocialProfile.namespaces.php';
 $wgExtensionMessagesFiles['AvatarMagic'] = __DIR__ . '/UserProfile/includes/avatar/Avatar.i18n.magic.php';
 
+// Hack to make installer load extension properly. (T243861)
+// Based on Installer::includeExtensions()
+if ( defined( 'MEDIAWIKI_INSTALL' ) ) {
+	$subext = [
+		__DIR__ . '/SystemGifts/extension.json' => 1,
+		__DIR__ . '/UserActivity/extension.json' => 1,
+		__DIR__ . '/UserBoard/extension.json' => 1,
+		__DIR__ . '/UserRelationship/extension.json' => 1,
+		__DIR__ . '/UserStats/extension.json' => 1,
+		__DIR__ . '/UserGifts/extension.json' => 1,
+	];
+
+	$registry = new ExtensionRegistry();
+	$data = $registry->readFromQueue( $subext );
+	if ( method_exists( AutoLoader::class, 'registerClasses' ) ) {
+		// MediaWiki 1.39+
+		AutoLoader::registerClasses( $data['autoloaderClasses'] );
+		if ( !isset( $wgAutoloadClasses ) ) {
+			$wgAutoloadClasses = [];
+		}
+	} else {
+		// @phan-suppress-next-line PhanUndeclaredVariableAssignOp
+		$wgAutoloadClasses += $data['globals']['wgAutoloadClasses'];
+	}
+}
+
 // Classes to be autoloaded
+$wgAutoloadClasses['SocialProfileFileBackend'] = __DIR__ . '/SocialProfileFileBackend.php';
 $wgAutoloadClasses['SpecialEditProfile'] = __DIR__ . '/UserProfile/includes/specials/SpecialEditProfile.php';
 $wgAutoloadClasses['SpecialPopulateUserProfiles'] = __DIR__ . '/UserProfile/includes/specials/SpecialPopulateExistingUsersProfiles.php';
 $wgAutoloadClasses['SpecialToggleUserPage'] = __DIR__ . '/UserProfile/includes/specials/SpecialToggleUserPageType.php';
 $wgAutoloadClasses['SpecialUpdateProfile'] = __DIR__ . '/UserProfile/includes/specials/SpecialUpdateProfile.php';
 $wgAutoloadClasses['SpecialUploadAvatar'] = __DIR__ . '/UserProfile/includes/specials/SpecialUploadAvatar.php';
 $wgAutoloadClasses['UploadAvatar'] = __DIR__ . '/UserProfile/includes/avatar/UploadAvatar.php';
+$wgAutoloadClasses['UploadAvatarFromUrl'] = __DIR__ . '/UserProfile/includes/avatar/UploadAvatarFromUrl.php';
+$wgAutoloadClasses['UploadAvatarTrait'] = __DIR__ . '/UserProfile/includes/avatar/UploadAvatarTrait.php';
 $wgAutoloadClasses['RemoveAvatar'] = __DIR__ . '/UserProfile/includes/specials/SpecialRemoveAvatar.php';
 $wgAutoloadClasses['UserProfile'] = __DIR__ . '/UserProfile/includes/UserProfile.php';
 $wgAutoloadClasses['UserProfileHooks'] = __DIR__ . '/UserProfile/includes/UserProfileHooks.php';
@@ -49,9 +78,15 @@ $wgAutoloadClasses['SPUserSecurity'] = __DIR__ . '/UserProfile/includes/SPUserSe
 $wgAutoloadClasses['RandomUsersWithAvatars'] = __DIR__ . '/UserProfile/includes/parser/RandomUsersWithAvatars.php';
 $wgAutoloadClasses['NewUsersList'] = __DIR__ . '/UserProfile/includes/parser/NewUsersList.php';
 
+$wgAutoloadClasses['MigrateOldUserProfileUserColumnToActor'] = __DIR__ . '/UserProfile/maintenance/migrateOldUserProfileUserColumnToActor.php';
+$wgAutoloadClasses['MigrateOldUserFieldPrivacyUserColumnToActor'] = __DIR__ . '/UserProfile/maintenance/migrateOldUserFieldPrivacyUserColumnToActor.php';
+
 // API modules
 $wgAutoloadClasses['ApiUserProfilePrivacy'] = __DIR__ . '/UserProfile/includes/api/ApiUserProfilePrivacy.php';
 $wgAPIModules['smpuserprivacy'] = 'ApiUserProfilePrivacy';
+
+$wgAutoloadClasses['ApiUserProfileType'] = __DIR__ . '/UserProfile/includes/api/ApiUserProfileType.php';
+$wgAPIModules['smpuserprofiletype'] = 'ApiUserProfileType';
 
 $wgDefaultUserOptions['echo-subscriptions-web-social-rel'] = true;
 $wgDefaultUserOptions['echo-subscriptions-email-social-rel'] = false;
@@ -63,6 +98,12 @@ $wgSpecialPages['RemoveAvatar'] = 'RemoveAvatar';
 $wgSpecialPages['ToggleUserPage'] = 'SpecialToggleUserPage';
 $wgSpecialPages['UpdateProfile'] = 'SpecialUpdateProfile';
 $wgSpecialPages['UploadAvatar'] = 'SpecialUploadAvatar';
+
+// file backend to use defaults to FileSystem
+// this allows you to use e.g. swift.
+// to setup your own file backend see
+// https://www.mediawiki.org/wiki/Manual:$wgFileBackends
+$wgSocialProfileFileBackend = '';
 
 // What to display on social profile pages by default?
 $wgUserProfileDisplay['board'] = true;
@@ -79,14 +120,16 @@ $wgFriendingEnabled = true;
 // Prefix SocialProfile will use to store avatars
 // for global avatars on a wikifarm or groups of wikis,
 // set this to something static.
-$wgAvatarKey = $wgDBname;
+// Use GLOBALS to access wgDBname as for some reason
+// accessing the config directly doesn't work under MW 1.40.
+$wgAvatarKey = $GLOBALS['wgDBname'];
 
 // Extension credits that show up on Special:Version
 $wgExtensionCredits['other'][] = [
 	'path' => __FILE__,
 	'name' => 'SocialProfile',
 	'author' => [ 'Aaron Wright', 'David Pean', 'Jack Phoenix' ],
-	'version' => '1.13',
+	'version' => '1.14',
 	'url' => 'https://www.mediawiki.org/wiki/Extension:SocialProfile',
 	'descriptionmsg' => 'socialprofile-desc',
 ];
@@ -109,9 +152,6 @@ $wgHooks['BeforePageDisplay'][] = 'SocialProfileHooks::onBeforePageDisplay';
 $wgHooks['CanonicalNamespaces'][] = 'SocialProfileHooks::onCanonicalNamespaces';
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'SocialProfileHooks::onLoadExtensionSchemaUpdates';
 $wgHooks['ParserFirstCallInit'][] = 'AvatarParserFunction::setupAvatarParserFunction';
-
-// For the Renameuser extension
-$wgHooks['RenameUserComplete'][] = 'SocialProfileHooks::onRenameUserComplete';
 
 // ResourceLoader module definitions for certain components which do not have
 // their own loader file

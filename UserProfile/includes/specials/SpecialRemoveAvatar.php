@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * A special page for removing avatars.
  * Privileged users can remove other users' avatars, but everyone can remove
@@ -24,6 +27,15 @@ class RemoveAvatar extends SpecialPage {
 	 */
 	function getGroupName() {
 		return 'users';
+	}
+
+	/**
+	 * Show this special page on Special:SpecialPages only for registered users
+	 *
+	 * @return bool
+	 */
+	function isListed() {
+		return $this->getUser()->isRegistered();
 	}
 
 	/**
@@ -63,17 +75,17 @@ class RemoveAvatar extends SpecialPage {
 		$userIsPrivileged = $this->isUserPrivileged();
 
 		// If the user isn't logged in, display an error
-		if ( !$user->isLoggedIn() ) {
+		if ( !$user->isRegistered() ) {
 			$this->displayRestrictionError();
-			return;
 		}
 
 		// Show a message if the database is in read-only mode
 		$this->checkReadOnly();
 
 		// If user is blocked, s/he doesn't need to access this page
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
 		// Set the page title, robot policies, etc.
@@ -104,15 +116,20 @@ class RemoveAvatar extends SpecialPage {
 				// remove others' avatars anyway
 				$out->addHTML(
 					'<div><a href="' . htmlspecialchars( $this->getPageTitle()->getFullURL() ) . '">' .
-						$this->msg( 'avatarupload-removeanother' )->plain() .
+						$this->msg( 'avatarupload-removeanother' )->escaped() .
 					'</a></div>'
 				);
 			}
 		} else {
-			if ( $par ) {
+			// "0" is a valid user name
+			// For whatever reason, such a user may exist indeed. It is also entirely
+			// possible, and, in fact, likely that they are NOT a privileged account.
+			// So let's not tempt [[User:0]] with a rather pointless user search form
+			// that won't even work for them, yes?
+			// (Hence if ( $par !== '' ) instead of the old if ( $par ) check!)
+			if ( isset( $par ) && $par !== '' ) {
 				$out->addHTML( $this->showUserAvatar( $par ) );
 			} else {
-
 				$this->showUserForm();
 			}
 		}
@@ -148,7 +165,9 @@ class RemoveAvatar extends SpecialPage {
 			'avatar',
 			$user->getUserPage(),
 			$this->msg( 'user-profile-picture-log-delete-entry', $user_deleted->getName() )
-				->inContentLanguage()->text()
+				->inContentLanguage()->text(),
+			[],
+			$user
 		);
 	}
 
@@ -195,7 +214,7 @@ class RemoveAvatar extends SpecialPage {
 			->setMethod( 'get' )
 			->setName( 'avatar' )
 			->setSubmitTextMsg( 'search' )
-			->setWrapperLegend( null )
+			->setWrapperLegend( '' )
 			->prepareForm()
 			->displayForm( false );
 		return true;
@@ -205,14 +224,24 @@ class RemoveAvatar extends SpecialPage {
 	 * Shows the requested user's current avatar and the button for deleting it
 	 *
 	 * @param string $user_name Name of the user whose avatars we want to delete
+	 *
+	 * @return string
 	 */
 	private function showUserAvatar( $user_name ) {
 		$out = $this->getOutput();
 		$user_name = str_replace( '_', ' ', $user_name ); // replace underscores with spaces
-		$user_id = User::idFromName( $user_name );
+		if ( method_exists( MediaWikiServices::class, 'getUserIdentityLookup' ) ) {
+			// MW 1.36+
+			$userIdentity = MediaWikiServices::getInstance()->getUserIdentityLookup()
+				->getUserIdentityByName( $user_name );
+			$user_id = $userIdentity ? $userIdentity->getId() : 0;
+		} else {
+			// @phan-suppress-next-line PhanUndeclaredStaticMethod Removed in MW 1.41+
+			$user_id = User::idFromName( $user_name );
+		}
 
 		$currentUser = $this->getUser();
-		$userIsAvatarOwner = (bool)( $currentUser->getName() === $user_name );
+		$userIsAvatarOwner = ( $currentUser->getName() === $user_name );
 		$userIsPrivileged = $this->isUserPrivileged();
 		$avatar = new wAvatar( $user_id, 'l' );
 		$output = '';
@@ -250,26 +279,29 @@ class RemoveAvatar extends SpecialPage {
 	}
 
 	/**
-	 * Deletes all of the requested user's avatar images from the filesystem
+	 * Deletes all of the requested user's avatar images from the file backend
 	 *
 	 * @param int $id User ID
 	 * @param string $size Size of the avatar image to delete (small, medium or large).
 	 * Doesn't really matter since we're just going to blast 'em all.
 	 */
 	private function deleteImage( $id, $size ) {
-		global $wgUploadDirectory, $wgAvatarKey, $wgMemc;
+		global $wgAvatarKey;
 
-		$avatar = new wAvatar( $id, $size );
-		$files = glob( $wgUploadDirectory . '/avatars/' . $wgAvatarKey . '_' . $id . '_' . $size . "*" );
-		MediaWiki\suppressWarnings();
-		$img = basename( $files[0] );
-		MediaWiki\restoreWarnings();
-		if ( $img && $img[0] ) {
-			unlink( $wgUploadDirectory . '/avatars/' . $img );
+		$backend = new SocialProfileFileBackend( 'avatars' );
+
+		$extensions = [ 'png', 'gif', 'jpg', 'jpeg' ];
+		foreach ( $extensions as $ext ) {
+			if ( $backend->fileExists( $wgAvatarKey . '_', $id, $size, $ext ) ) {
+				$backend->getFileBackend()->quickDelete( [
+					'src' => $backend->getPath( $wgAvatarKey . '_', $id, $size, $ext )
+				] );
+			}
 		}
 
 		// clear cache
-		$key = $wgMemc->makeKey( 'user', 'profile', 'avatar', $id, $size );
-		$wgMemc->delete( $key );
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$key = $cache->makeKey( 'user', 'profile', 'avatar', $id, $size );
+		$cache->delete( $key );
 	}
 }

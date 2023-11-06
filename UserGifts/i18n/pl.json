@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Jack Phoenix",
 			"Sp5uhe"
 		]
 	},
@@ -29,12 +30,12 @@
 	"g-error-do-not-own": "Nie masz tego prezentu.",
 	"g-error-message-blocked": "Jesteś obecnie zablokowany i nie możesz dawać prezentów",
 	"g-error-message-invalid-link": "Link który wprowadziłeś jest nieprawidłowy.",
-	"g-error-message-login": "Należy zalogować się aby dawać prezenty",
+	"g-error-message-login": "Należy [[Special:UserLogin|zalogować się]] aby dawać prezenty.",
 	"g-error-message-no-user": "Użytkownik, którego próbujesz wyświetlić nie istnieje.",
 	"g-error-message-to-yourself": "Nie można dać prezentu samemu siebie.",
 	"g-error-title": "Ojej. Nie można tego zrobić!",
 	"g-file-instructions": "Obrazek musi być w formacie jpeg, png lub gif (gif bez animacji) oraz musi być mniejszy niż 100kb.",
-	"g-from": "od <a href=\"$1\">$2</a>",
+	"g-from": "od [[User:$1|$1]]",
 	"g-gift": "prezent",
 	"g-gift-name": "nazwa prezentu",
 	"g-give-gift": "Daj prezent",
@@ -44,12 +45,11 @@
 	"g-give-enter-friend-title": "Jeśli znasz nazwę użytkownika, wpisz ją poniżej",
 	"g-given": "Ten prezent został podarowany $1 {{PLURAL:$1|raz|razy}}",
 	"g-give-list-friends-title": "Wybierz z listy przyjaciół",
-	"g-give-list-select": "wybierz znajomego",
 	"g-give-separator": "lub",
 	"g-give-no-user-message": "Prezenty i nagrody to świetny sposób aby okazać swoją przyjaźń!",
 	"g-give-no-user-title": "Komu chciałbyś dać prezent?",
 	"g-give-to-user-title": "Wyślij prezent „$1” do $2",
-	"g-give-to-user-message": "Czy chcesz dać $1 <a href=\"$2\">inny prezent</a>?",
+	"g-give-to-user-message": "Czy chcesz dać $1 [[Special:GiveGift/$1|inny prezent]]?",
 	"g-go-back": "Wróć",
 	"g-imagesbelow": "Poniżej znajdują się Twoje grafiki, które zostaną wykorzystane na stronie",
 	"g-large": "Duży",

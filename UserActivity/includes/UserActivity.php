@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * UserActivity class
  */
@@ -9,34 +12,59 @@ class UserActivity {
 	 * Please use the accessor functions
 	 */
 
-	private $user_id;       # Text form (spaces not underscores) of the main part
-	private $user_name;		# Text form (spaces not underscores) of the main part
-	private $items;         # Text form (spaces not underscores) of the main part
+	/** @var User|null */
+	private $user;
+	/** @var array[]|null */
+	private $items;
+	/** @var int|null */
 	private $rel_type;
+	/** @var bool */
 	private $show_current_user = false;
+	/** @var int */
 	private $show_edits = 1;
+	/** @var int */
 	private $show_votes = 0;
+	/** @var int */
 	private $show_comments = 1;
+	/** @var int */
 	private $show_relationships = 1;
+	/** @var int */
 	private $show_gifts_sent = 0;
+	/** @var int */
 	private $show_gifts_rec = 1;
+	/** @var int */
 	private $show_system_gifts = 1;
+	/** @var int */
 	private $show_system_messages = 1;
+	/** @var int */
 	private $show_messages_sent = 1;
+	/** @var int */
 	private $show_network_updates = 0;
+	/** @var bool */
+	private $show_all;
+	/** @var int */
+	private $item_max;
+	/** @var int */
+	private $now;
+	/** @var int */
+	private $three_days_ago;
+	/** @var array */
+	private $items_grouped;
+	/** @var array[]|null */
+	private $displayed;
+	/** @var array[]|null */
+	private $activityLines;
 
 	/**
-	 * @param string $username Username (usually $wgUser's username)
+	 * @param User|null $user User object whose activity feed we want
 	 * @param string $filter Passed to setFilter(); can be either
 	 * 'user', 'friends', 'foes' or 'all', depending on what
 	 * kind of information is wanted
 	 * @param int $item_max Maximum amount of items to display in the feed
 	 */
-	public function __construct( $username, $filter, $item_max ) {
-		if ( $username ) {
-			$title1 = Title::newFromDBkey( $username );
-			$this->user_name = $title1->getText();
-			$this->user_id = User::idFromName( $this->user_name );
+	public function __construct( $user, $filter, $item_max ) {
+		if ( $user ) {
+			$this->user = $user;
 		}
 		$this->setFilter( $filter );
 		$this->item_max = $item_max;
@@ -62,6 +90,9 @@ class UserActivity {
 
 	/**
 	 * Sets the value of class member variable $name to $value.
+	 *
+	 * @param string $name
+	 * @param mixed $value
 	 */
 	public function setActivityToggle( $name, $value ) {
 		$this->$name = $value;
@@ -79,42 +110,51 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "rc_user IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['actor_id'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['rc_user'] = $this->user_id;
+			$where['actor_id'] = $this->user->getActorId();
 		}
 
+		$commentStore = MediaWikiServices::getInstance()->getCommentStore();
+		$commentQuery = $commentStore->getJoin( 'rc_comment' );
+
 		$res = $dbr->select(
-			'recentchanges',
+			[ 'recentchanges', 'actor' ] + $commentQuery['tables'],
 			[
 				'rc_timestamp', 'rc_title',
-				'rc_user', 'rc_user_text', 'rc_comment', 'rc_id', 'rc_minor',
-				'rc_new', 'rc_namespace', 'rc_cur_id', 'rc_this_oldid',
-				'rc_last_oldid', 'rc_log_action'
-			],
+				'rc_id', 'rc_minor',
+				'rc_source', 'rc_namespace', 'rc_cur_id', 'rc_this_oldid',
+				'rc_last_oldid', 'rc_log_action',
+				'rc_actor',
+				'actor_user', 'actor_name'
+			] + $commentQuery['fields'],
 			$where,
 			__METHOD__,
 			[
 				'ORDER BY' => 'rc_id DESC',
 				'LIMIT' => $this->item_max,
 				'OFFSET' => 0
-			]
+			],
+			[
+				'actor' => [ 'JOIN', 'actor_id = rc_actor' ]
+			] + $commentQuery['joins']
 		);
 
 		foreach ( $res as $row ) {
@@ -128,17 +168,17 @@ class UserActivity {
 			$title = Title::makeTitle( $row->rc_namespace, $row->rc_title );
 			$unixTS = wfTimestamp( TS_UNIX, $row->rc_timestamp );
 
-			$this->items_grouped['edit'][$title->getPrefixedText()]['users'][$row->rc_user_text][] = [
+			$this->items_grouped['edit'][$title->getPrefixedText()]['users'][$row->actor_name][] = [
 				'id' => 0,
 				'type' => 'edit',
 				'timestamp' => $unixTS,
 				'pagetitle' => $row->rc_title,
 				'namespace' => $row->rc_namespace,
-				'username' => $row->rc_user_text,
-				'userid' => $row->rc_user,
-				'comment' => $this->fixItemComment( $row->rc_comment ),
+				'username' => $row->actor_name,
+				'comment' => $this->fixItemComment( $commentStore->getComment(
+					'rc_comment', $row )->text ),
 				'minor' => $row->rc_minor,
-				'new' => $row->rc_new
+				'new' => $row->rc_source === RecentChange::SRC_NEW
 			];
 
 			// set last timestamp
@@ -150,11 +190,11 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => $row->rc_title,
 				'namespace' => $row->rc_namespace,
-				'username' => $row->rc_user_text,
-				'userid' => $row->rc_user,
-				'comment' => $this->fixItemComment( $row->rc_comment ),
+				'username' => $row->actor_name,
+				'comment' => $this->fixItemComment( $commentStore->getComment(
+					'rc_comment', $row )->text ),
 				'minor' => $row->rc_minor,
-				'new' => $row->rc_new
+				'new' => $row->rc_source === RecentChange::SRC_NEW
 			];
 		}
 	}
@@ -168,7 +208,7 @@ class UserActivity {
 
 		# Bail out if Vote table doesn't exist
 		if ( !$dbr->tableExists( 'Vote' ) ) {
-			return false;
+			return;
 		}
 
 		$where = [];
@@ -177,32 +217,32 @@ class UserActivity {
 		if ( $this->rel_type ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "vote_user_id IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['vote_actor'] = $userArray;
 			}
 		}
 		if ( $this->show_current_user ) {
-			$where['vote_user_id'] = $this->user_id;
+			$where['vote_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			[ 'Vote', 'page' ],
 			[
-				'vote_date AS item_date', 'username',
-				'page_title', 'vote_count', 'comment_count', 'vote_ip',
-				'vote_user_id'
+				'vote_date AS item_date', 'vote_actor',
+				'page_title', 'vote_count', 'comment_count', 'vote_ip'
 			],
 			$where,
 			__METHOD__,
@@ -214,15 +254,17 @@ class UserActivity {
 		);
 
 		foreach ( $res as $row ) {
-			$username = $row->username;
+			$user = User::newFromActorId( $row->vote_actor );
+			if ( !$user ) {
+				continue;
+			}
 			$this->items[] = [
 				'id' => 0,
 				'type' => 'vote',
 				'timestamp' => wfTimestamp( TS_UNIX, $row->vote_date ),
 				'pagetitle' => $row->page_title,
 				'namespace' => $row->page_namespace,
-				'username' => $username,
-				'userid' => $row->vote_user_id,
+				'username' => $user->getName(),
 				'comment' => '-',
 				'new' => '0',
 				'minor' => 0
@@ -239,7 +281,7 @@ class UserActivity {
 
 		# Bail out if Comments table doesn't exist
 		if ( !$dbr->tableExists( 'Comments' ) ) {
-			return false;
+			return;
 		}
 
 		$where = [];
@@ -248,33 +290,33 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "Comment_user_id IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['Comment_actor'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['Comment_user_id'] = $this->user_id;
+			$where['Comment_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			[ 'Comments', 'page' ],
 			[
-				'Comment_Date AS item_date',
-				'Comment_Username', 'Comment_IP', 'page_title', 'Comment_Text',
-				'Comment_user_id', 'page_namespace', 'CommentID'
+				'Comment_Date AS item_date', 'Comment_actor', 'Comment_IP',
+				'page_title', 'Comment_Text', 'page_namespace', 'CommentID'
 			],
 			$where,
 			__METHOD__,
@@ -298,14 +340,17 @@ class UserActivity {
 			if ( $show_comment ) {
 				$title = Title::makeTitle( $row->page_namespace, $row->page_title );
 				$unixTS = wfTimestamp( TS_UNIX, $row->item_date );
-				$this->items_grouped['comment'][$title->getPrefixedText()]['users'][$row->Comment_Username][] = [
+				$user = User::newFromActorId( $row->Comment_actor );
+				if ( !$user ) {
+					continue;
+				}
+				$this->items_grouped['comment'][$title->getPrefixedText()]['users'][$user->getName()][] = [
 					'id' => $row->CommentID,
 					'type' => 'comment',
 					'timestamp' => $unixTS,
 					'pagetitle' => $row->page_title,
 					'namespace' => $row->page_namespace,
-					'username' => $row->Comment_Username,
-					'userid' => $row->Comment_user_id,
+					'username' => $user->getName(),
 					'comment' => $this->fixItemComment( $row->Comment_Text ),
 					'minor' => 0,
 					'new' => 0
@@ -314,15 +359,13 @@ class UserActivity {
 				// set last timestamp
 				$this->items_grouped['comment'][$title->getPrefixedText()]['timestamp'] = $unixTS;
 
-				$username = $row->Comment_Username;
 				$this->items[] = [
 					'id' => $row->CommentID,
 					'type' => 'comment',
 					'timestamp' => $unixTS,
 					'pagetitle' => $row->page_title,
 					'namespace' => $row->page_namespace,
-					'username' => $username,
-					'userid' => $row->Comment_user_id,
+					'username' => $user->getName(),
 					'comment' => $this->fixItemComment( $row->Comment_Text ),
 					'new' => '0',
 					'minor' => 0
@@ -343,32 +386,32 @@ class UserActivity {
 		if ( $this->rel_type ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "ug_user_id_to IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['ug_actor_to'] = $userArray;
 			}
 		}
 
 		if ( $this->show_current_user ) {
-			$where['ug_user_id_from'] = $this->user_id;
+			$where['ug_actor_from'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			[ 'user_gift', 'gift' ],
 			[
-				'ug_id', 'ug_user_id_from', 'ug_user_name_from',
-				'ug_user_id_to', 'ug_user_name_to',
+				'ug_id', 'ug_actor_from', 'ug_actor_to',
 				'ug_date', 'gift_name', 'gift_id'
 			],
 			$where,
@@ -382,15 +425,16 @@ class UserActivity {
 		);
 
 		foreach ( $res as $row ) {
+			$giftSender = User::newFromActorId( $row->ug_actor_from );
+			$giftRecipient = User::newFromActorId( $row->ug_actor_to );
 			$this->items[] = [
 				'id' => $row->ug_id,
 				'type' => 'gift-sent',
 				'timestamp' => wfTimestamp( TS_UNIX, $row->ug_date ),
 				'pagetitle' => $row->gift_name,
 				'namespace' => $row->gift_id,
-				'username' => $row->ug_user_name_from,
-				'userid' => $row->ug_user_id_from,
-				'comment' => $row->ug_user_name_to,
+				'username' => $giftSender->getName(),
+				'comment' => $giftRecipient->getName(),
 				'new' => '0',
 				'minor' => 0
 			];
@@ -409,32 +453,32 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "ug_user_id_to IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['ug_actor_to'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['ug_user_id_to'] = $this->user_id;
+			$where['ug_actor_to'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			[ 'user_gift', 'gift' ],
 			[
-				'ug_id', 'ug_user_id_from', 'ug_user_name_from',
-				'ug_user_id_to', 'ug_user_name_to',
+				'ug_id', 'ug_actor_from', 'ug_actor_to',
 				'ug_date', 'gift_name', 'gift_id'
 			],
 			$where,
@@ -448,16 +492,16 @@ class UserActivity {
 		);
 
 		foreach ( $res as $row ) {
-			$user_title = Title::makeTitle( NS_USER, $row->ug_user_name_to );
-			$user_title_from = Title::makeTitle( NS_USER, $row->ug_user_name_from );
+			$giftSender = User::newFromActorId( $row->ug_actor_from );
+			$giftRecipient = User::newFromActorId( $row->ug_actor_to );
 
 			$userGiftIcon = new UserGiftIcon( $row->gift_id, 'm' );
 			$icon = $userGiftIcon->getIconHTML();
 			$view_gift_link = SpecialPage::getTitleFor( 'ViewGift' );
 
 			$html = wfMessage( 'useractivity-gift',
-				'<b><a href="' . htmlspecialchars( $user_title->getFullURL() ) . "\">" . htmlspecialchars( $row->ug_user_name_to ) . "</a></b>",
-				'<a href="' . htmlspecialchars( $user_title_from->getFullURL() ) . "\">" . htmlspecialchars( $user_title_from->getText() ) . "</a>"
+				'<b><a href="' . htmlspecialchars( $giftRecipient->getUserPage()->getFullURL() ) . "\">" . htmlspecialchars( $giftRecipient->getName() ) . "</a></b>",
+				'<a href="' . htmlspecialchars( $giftSender->getUserPage()->getFullURL() ) . "\">" . htmlspecialchars( $giftSender->getName() ) . "</a>"
 			)->text() .
 			"<div class=\"item\">
 				<a href=\"" . htmlspecialchars( $view_gift_link->getFullURL( 'gift_id=' . $row->ug_id ) ) . "\" rel=\"nofollow\">
@@ -480,9 +524,8 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => $row->gift_name,
 				'namespace' => $row->gift_id,
-				'username' => $row->ug_user_name_to,
-				'userid' => $row->ug_user_id_to,
-				'comment' => $row->ug_user_name_from,
+				'username' => $giftRecipient->getName(),
+				'comment' => $giftSender->getName(),
 				'new' => '0',
 				'minor' => 0
 			];
@@ -502,32 +545,33 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "sg_user_id IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['sg_actor'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['sg_user_id'] = $this->user_id;
+			$where['sg_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			[ 'user_system_gift', 'system_gift' ],
 			[
-				'sg_id', 'sg_user_id', 'sg_user_name',
-				'sg_date', 'gift_name', 'gift_id'
+				'sg_id', 'sg_actor', 'sg_date',
+				'gift_name', 'gift_id'
 			],
 			$where,
 			__METHOD__,
@@ -540,15 +584,21 @@ class UserActivity {
 		);
 
 		foreach ( $res as $row ) {
-			$user_title = Title::makeTitle( NS_USER, $row->sg_user_name );
+			$user = User::newFromActorId( $row->sg_actor );
+			if ( !$user ) {
+				continue;
+			}
 			$systemGiftIcon = new SystemGiftIcon( $row->gift_id, 'm' );
 			$icon = $systemGiftIcon->getIconHTML();
 
 			$system_gift_link = SpecialPage::getTitleFor( 'ViewSystemGift' );
 
+			// @todo FIXME: get rid of rawParams, there's literally no need for raw HTML
+			// in order to merely make a bolded link to the user's user page
 			$html = wfMessage( 'useractivity-award' )->rawParams(
-				'<b><a href="' . htmlspecialchars( $user_title->getFullURL() ) . "\">" . htmlspecialchars( $row->sg_user_name ) . "</a></b>",
-				htmlspecialchars( $row->sg_user_name ) )->escaped() .
+				'<b><a href="' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . "\">" . htmlspecialchars( $user->getName() ) . "</a></b>",
+				htmlspecialchars( $user->getName() )
+			)->escaped() .
 			'<div class="item">
 				<a href="' . htmlspecialchars( $system_gift_link->getFullURL( 'gift_id=' . $row->sg_id ) ) . "\" rel=\"nofollow\">
 					{$icon}
@@ -570,8 +620,7 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => $row->gift_name,
 				'namespace' => $row->gift_id,
-				'username' => $row->sg_user_name,
-				'userid' => $row->sg_user_id,
+				'username' => $user->getName(),
 				'comment' => '-',
 				'new' => '0',
 				'minor' => 0
@@ -593,33 +642,31 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "r_user_id IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['r_actor'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['r_user_id'] = $this->user_id;
+			$where['r_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			'user_relationship',
-			[
-				'r_id', 'r_user_id', 'r_user_name', 'r_user_id_relation',
-				'r_user_name_relation', 'r_type', 'r_date'
-			],
+			[ 'r_id', 'r_actor', 'r_actor_relation', 'r_type', 'r_date' ],
 			$where,
 			__METHOD__,
 			[
@@ -636,24 +683,33 @@ class UserActivity {
 				$r_type = 'foe';
 			}
 
-			$user_name_short = $wgLang->truncateForVisual( $row->r_user_name, 25 );
+			$user = User::newFromActorId( $row->r_actor );
+			if ( !$user ) {
+				continue;
+			}
+
+			$userRelation = User::newFromActorId( $row->r_actor_relation );
+			if ( !$userRelation ) {
+				continue;
+			}
+
+			$user_name_short = $wgLang->truncateForVisual( $user->getName(), 25 );
 			$unixTS = wfTimestamp( TS_UNIX, $row->r_date );
 
-			$this->items_grouped[$r_type][$row->r_user_name_relation]['users'][$row->r_user_name][] = [
+			$this->items_grouped[$r_type][$userRelation->getName()]['users'][$user->getName()][] = [
 				'id' => $row->r_id,
 				'type' => $r_type,
 				'timestamp' => $unixTS,
 				'pagetitle' => '',
 				'namespace' => '',
 				'username' => $user_name_short,
-				'userid' => $row->r_user_id,
-				'comment' => $row->r_user_name_relation,
+				'comment' => $user->getName(),
 				'minor' => 0,
 				'new' => 0
 			];
 
 			// set last timestamp
-			$this->items_grouped[$r_type][$row->r_user_name_relation]['timestamp'] = $unixTS;
+			$this->items_grouped[$r_type][$userRelation->getName()]['timestamp'] = $unixTS;
 
 			$this->items[] = [
 				'id' => $row->r_id,
@@ -661,9 +717,8 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => '',
 				'namespace' => '',
-				'username' => $row->r_user_name,
-				'userid' => $row->r_user_id,
-				'comment' => $row->r_user_name_relation,
+				'username' => $user->getName(),
+				'comment' => $userRelation->getName(),
 				'new' => '0',
 				'minor' => 0
 			];
@@ -679,38 +734,36 @@ class UserActivity {
 
 		$where = [];
 		// We do *not* want to display private messages...
-		$where['ub_type'] = 0;
+		$where['ub_type'] = UserBoard::MESSAGE_PUBLIC;
 
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "ub_user_id_from IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['ub_actor_from'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['ub_user_id_from'] = $this->user_id;
+			$where['ub_actor_from'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			'user_board',
-			[
-				'ub_id', 'ub_user_id', 'ub_user_name', 'ub_user_id_from',
-				'ub_user_name_from', 'ub_date', 'ub_message'
-			],
+			[ 'ub_id', 'ub_actor', 'ub_actor_from', 'ub_date', 'ub_message' ],
 			$where,
 			__METHOD__,
 			[
@@ -722,13 +775,13 @@ class UserActivity {
 
 		foreach ( $res as $row ) {
 			// Ignore nonexistent (for example, renamed) users
-			$uid = User::idFromName( $row->ub_user_name );
-			if ( !$uid ) {
+			$user = User::newFromActorId( $row->ub_actor );
+			if ( !$user ) {
 				continue;
 			}
 
-			$to = $row->ub_user_name;
-			$from = $row->ub_user_name_from;
+			$to = $user->getName();
+			$from = User::newFromActorId( $row->ub_actor_from )->getName();
 			$unixTS = wfTimestamp( TS_UNIX, $row->ub_date );
 
 			$this->items_grouped['user_message'][$to]['users'][$from][] = [
@@ -738,7 +791,6 @@ class UserActivity {
 				'pagetitle' => '',
 				'namespace' => '',
 				'username' => $from,
-				'userid' => $row->ub_user_id_from,
 				'comment' => $to,
 				'minor' => 0,
 				'new' => 0
@@ -754,7 +806,6 @@ class UserActivity {
 				'pagetitle' => '',
 				'namespace' => $this->fixItemComment( $row->ub_message ),
 				'username' => $from,
-				'userid' => $row->ub_user_id_from,
 				'comment' => $to,
 				'new' => '0',
 				'minor' => 0
@@ -777,33 +828,31 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
+
 			$userArray = [];
 			foreach ( $users as $user ) {
 				$userArray[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "um_user_id IN ($userIDs)";
+
+			if ( !empty( $userArray ) ) {
+				$where['um_actor'] = $userArray;
 			}
 		}
 
 		if ( !empty( $this->show_current_user ) ) {
-			$where['um_user_id'] = $this->user_id;
+			$where['um_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			'user_system_messages',
-			[
-				'um_id', 'um_user_id', 'um_user_name', 'um_type', 'um_message',
-				'um_date'
-			],
+			[ 'um_id', 'um_actor', 'um_type', 'um_message', 'um_date' ],
 			$where,
 			__METHOD__,
 			[
@@ -814,14 +863,29 @@ class UserActivity {
 		);
 
 		foreach ( $res as $row ) {
-			$user_title = Title::makeTitle( NS_USER, $row->um_user_name );
-			$user_name_short = htmlspecialchars( $wgLang->truncateForVisual( $row->um_user_name, 15 ) );
+			$user = User::newFromActorId( $row->um_actor );
+			$user_name_short = htmlspecialchars( $wgLang->truncateForVisual( $user->getName(), 15 ) );
 			$unixTS = wfTimestamp( TS_UNIX, $row->um_date );
+			$comment = $this->fixItemComment( $row->um_message );
+
+			// @todo FIXME: epic suckage is epic
+			// For level-up actions we do _not_ want escaping because "level-advanced-to" i18n msg
+			// contains <span> tags and we want to parse those correctly...
+			// But why the hell are we even storing an English string or whatever in the
+			// DB in the first place in UserSystemMessage?! That's just horrible.
+			$msg = htmlspecialchars( $row->um_message );
+			if ( $row->um_type == UserSystemMessage::TYPE_LEVELUP ) {
+				$msg = $row->um_message;
+				// Don't call $this->fixItemComment() b/c we don't want to mutilate the
+				// HTML as if we do that, it won't show up properly on social profile pages
+				// Instead just directly truncate the string here if necessary and continue
+				$comment = $wgLang->truncateForVisual( $msg, 75 );
+			}
 
 			$this->activityLines[] = [
 				'type' => 'system_message',
 				'timestamp' => $unixTS,
-				'data' => ' <b><a href="' . htmlspecialchars( $user_title->getFullURL() ) . "\">{$user_name_short}</a></b> " . htmlspecialchars( $row->um_message )
+				'data' => ' <b><a href="' . htmlspecialchars( $user->getUserPage()->getFullURL() ) . "\">{$user_name_short}</a></b> " . $msg
 			];
 
 			$this->items[] = [
@@ -830,9 +894,8 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => '',
 				'namespace' => '',
-				'username' => $row->um_user_name,
-				'userid' => $row->um_user_id,
-				'comment' => $this->fixItemComment( $row->um_message ),
+				'username' => $user->getName(),
+				'comment' => $comment,
 				'new' => '0',
 				'minor' => 0
 			];
@@ -857,31 +920,32 @@ class UserActivity {
 		if ( !empty( $this->rel_type ) ) {
 			$users = $dbr->select(
 				'user_relationship',
-				'r_user_id_relation',
+				'r_actor_relation',
 				[
-					'r_user_id' => $this->user_id,
+					'r_actor' => $this->user->getActorId(),
 					'r_type' => $this->rel_type
 				],
 				__METHOD__
 			);
-			$userArray = [];
+
+			$actorIDs = [];
 			foreach ( $users as $user ) {
-				$userArray[] = $user;
+				$actorIDs[] = $user;
 			}
-			$userIDs = implode( ',', $userArray );
-			if ( !empty( $userIDs ) ) {
-				$where[] = "us_user_id IN ($userIDs)";
+
+			if ( !empty( $actorIDs ) ) {
+				$where['us_actor'] = $actorIDs;
 			}
 		}
 
 		if ( $this->show_current_user ) {
-			$where['us_user_id'] = $this->user_id;
+			$where['us_actor'] = $this->user->getActorId();
 		}
 
 		$res = $dbr->select(
 			'user_status',
 			[
-				'us_id', 'us_user_id', 'us_user_name', 'us_text',
+				'us_id', 'us_actor', 'us_text',
 				'us_date', 'us_sport_id', 'us_team_id'
 			],
 			$where,
@@ -902,6 +966,8 @@ class UserActivity {
 				$network_name = $sport['name'];
 			}
 			$unixTS = wfTimestamp( TS_UNIX, $row->us_date );
+			$user = User::newFromActorId( $row->us_actor );
+			$userName = $user->getName();
 
 			$this->items[] = [
 				'id' => $row->us_id,
@@ -909,16 +975,14 @@ class UserActivity {
 				'timestamp' => $unixTS,
 				'pagetitle' => '',
 				'namespace' => '',
-				'username' => $row->us_user_name,
-				'userid' => $row->us_user_id,
+				'username' => $userName,
 				'comment' => $this->fixItemComment( $row->us_text ),
 				'sport_id' => $row->us_sport_id,
 				'team_id' => $row->us_team_id,
 				'network' => $network_name
 			];
 
-			$user_title = Title::makeTitle( NS_USER, $row->us_user_name );
-			$user_name_short = $wgLang->truncateForVisual( $row->us_user_name, 15 );
+			$user_name_short = $wgLang->truncateForVisual( $userName, 15 );
 
 			$sportsNetworkURL = htmlspecialchars(
 				SpecialPage::getTitleFor( 'FanHome' )->getFullURL( [
@@ -928,17 +992,17 @@ class UserActivity {
 				ENT_QUOTES
 			);
 
-			$page_link = '<a href="' . $sportsNetworkURL . "\" rel=\"nofollow\">" . htmlspecialchars( $network_name ) . "</a>";
+			$page_link = '<a href="' . $sportsNetworkURL . '" rel="nofollow">' .
+				htmlspecialchars( $network_name ) . '</a>';
 			$network_image = SportsTeams::getLogo( $row->us_sport_id, $row->us_team_id, 's' );
 
-			// FIXME: This message uses raw HTML
 			$html = wfMessage(
 				'useractivity-network-thought',
-				htmlspecialchars( $row->us_user_name ),
-				htmlspecialchars( $user_name_short ),
-				$page_link,
-				htmlspecialchars( $user_title->getFullURL() )
-			)->text() .
+				$userName,
+				$user_name_short
+			)->rawParams(
+				$page_link
+			)->parse() .
 					'<div class="item">
 						<a href="' . $sportsNetworkURL . "\" rel=\"nofollow\">
 							{$network_image}
@@ -1004,6 +1068,13 @@ class UserActivity {
 		return $this->items;
 	}
 
+	/**
+	 * Phan does _NOT_ like something here and I can't quite figure out what it could be,
+	 * so let's pretend everything is fine.
+	 *
+	 * @return-taint onlysafefor_html
+	 * @return array
+	 */
 	public function getActivityList() {
 		if ( $this->show_edits ) {
 			$this->setEdits();
@@ -1042,6 +1113,13 @@ class UserActivity {
 		return $this->items;
 	}
 
+	/**
+	 * Phan does _NOT_ like something here and I can't quite figure out what it could be,
+	 * so let's pretend everything is fine.
+	 *
+	 * @return-taint onlysafefor_html
+	 * @return array
+	 */
 	public function getActivityListGrouped() {
 		$this->getActivityList();
 
@@ -1065,7 +1143,7 @@ class UserActivity {
 			$this->activityLines = [];
 		}
 
-		if ( isset( $this->activityLines ) && is_array( $this->activityLines ) ) {
+		if ( !empty( $this->activityLines ) && is_array( $this->activityLines ) ) {
 			usort( $this->activityLines, [ 'UserActivity', 'sortItems' ] );
 		}
 
@@ -1080,7 +1158,7 @@ class UserActivity {
 		global $wgLang;
 
 		if ( !isset( $this->items_grouped[$type] ) || !is_array( $this->items_grouped[$type] ) ) {
-			return '';
+			return;
 		}
 
 		foreach ( $this->items_grouped[$type] as $page_name => $page_data ) {
@@ -1115,6 +1193,8 @@ class UserActivity {
 					if ( $count_users == 1 && $count_actions > 1 ) {
 						$pages .= wfMessage( 'word-separator' )->escaped();
 						$pages .= wfMessage( 'parentheses' )->rawParams( wfMessage(
+							// For grep: useractivity-group-edit, useractivity-group-comment,
+							// useractivity-group-user_message, useractivity-group-friend
 							"useractivity-group-{$type}",
 							$count_actions,
 							$user_name
@@ -1154,6 +1234,8 @@ class UserActivity {
 									if ( $count_actions2 > 1 ) {
 										$pages .= wfMessage( 'word-separator' )->escaped();
 										$pages .= wfMessage( 'parentheses' )->rawParams( wfMessage(
+											// For grep: useractivity-group-edit, useractivity-group-comment,
+											// useractivity-group-user_message, useractivity-group-friend
 											"useractivity-group-{$type}",
 											$count_actions2,
 											$user_name
@@ -1187,6 +1269,9 @@ class UserActivity {
 				$this->activityLines[] = [
 					'type' => $type,
 					'timestamp' => $page_data['timestamp'],
+					// For grep: useractivity-edit, useractivity-foe, useractivity-friend,
+					// useractivity-gift, useractivity-user_message, useractivity-comment
+					// @phan-suppress-next-line SecurityCheck-XSS Somewhat false alarm as per the comment below
 					'data' => wfMessage( "useractivity-{$type}" )->rawParams(
 						$users, $count_users, $pages, $pages_count,
 						// $userNameForGender is not sanitized, but this parameter
@@ -1253,8 +1338,8 @@ class UserActivity {
 	 * Compares the timestamps of two given objects to decide how to sort them.
 	 * Called by getActivityList() and getActivityListGrouped().
 	 *
-	 * @param object $x
-	 * @param object $y
+	 * @param array $x
+	 * @param array $y
 	 * @return int 0 if the timestamps are the same, -1 if $x's timestamp
 	 * is greater than $y's, else 1
 	 */

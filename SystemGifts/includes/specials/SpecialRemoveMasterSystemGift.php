@@ -7,12 +7,17 @@
  */
 class RemoveMasterSystemGift extends UnlistedSpecialPage {
 
+	/**
+	 * @var int Internal ID of the system gift we want to delete
+	 */
+	public $gift_id;
+
 	public function __construct() {
 		parent::__construct( 'RemoveMasterSystemGift', 'awardsmanage' );
 	}
 
 	/**
-	 * Deletes a gift image from $wgUploadDirectory/awards/
+	 * Deletes a gift image from mwstore://<file_backend>
 	 *
 	 * @param int $id Internal ID number of the gift whose image we want to delete
 	 * @param string $size Size of the image to delete,
@@ -22,20 +27,23 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 	 * - l for large
 	 */
 	function deleteImage( $id, $size ) {
-		global $wgUploadDirectory;
-		$files = glob( $wgUploadDirectory . '/awards/sg_' . $id . "_{$size}*" );
-		if ( $files && $files[0] ) {
-			$img = basename( $files[0] );
-			// $img already contains the sg_ prefix
-			unlink( $wgUploadDirectory . '/awards/' . $img );
+		$backend = new SocialProfileFileBackend( 'awards' );
+
+		$extensions = [ 'png', 'gif', 'jpg', 'jpeg' ];
+		foreach ( $extensions as $ext ) {
+			if ( $backend->fileExists( 'sg_', $id, $size, '.' . $ext ) ) {
+				$backend->getFileBackend()->quickDelete( [
+					'src' => $backend->getPath( 'sg_', $id, $size, $ext )
+				] );
+			}
 		}
 	}
 
 	/**
 	 * Show the special page
 	 *
-	 * @param string|null $par
-	 * @return string HTML
+	 * @param int|null $par Gift ID, if any; needed to be able to use this special page properly
+	 * @return void
 	 */
 	public function execute( $par ) {
 		$out = $this->getOutput();
@@ -49,8 +57,9 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 		$this->checkReadOnly();
 
 		// If user is blocked, s/he doesn't need to access this page
-		if ( $user->isBlocked() ) {
-			throw new UserBlockedError( $user->getBlock() );
+		$block = $user->getBlock();
+		if ( $block ) {
+			throw new UserBlockedError( $block );
 		}
 
 		// Set the robot policies, etc.
@@ -65,13 +74,17 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 
 		$this->gift_id = $request->getInt( 'gift_id', $par );
 
-		if ( !$this->gift_id || !is_numeric( $this->gift_id ) ) {
-			$out->setPageTitle( $this->msg( 'ga-error-title' )->plain() );
-			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->plain() );
-			return false;
+		if ( !$this->gift_id ) {
+			$out->setPageTitle( $this->msg( 'ga-error-title' ) );
+			$out->addHTML( $this->msg( 'ga-error-message-invalid-link' )->escaped() );
+			return;
 		}
 
-		if ( $request->wasPosted() && $_SESSION['alreadysubmitted'] == false ) {
+		if (
+			$request->wasPosted() &&
+			$user->matchEditToken( $request->getVal( 'wpEditToken' ) ) &&
+			$_SESSION['alreadysubmitted'] == false
+		) {
 			$_SESSION['alreadysubmitted'] = true;
 
 			$dbw = wfGetDB( DB_MASTER );
@@ -93,14 +106,14 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 			$this->deleteImage( $this->gift_id, 'l' );
 			$this->deleteImage( $this->gift_id, 'ml' );
 
-			$out->setPageTitle( $this->msg( 'ga-remove-success-title', $gift['gift_name'] )->plain() );
+			$out->setPageTitle( $this->msg( 'ga-remove-success-title', $gift['gift_name'] ) );
 
 			$output = '<div class="back-links">
 				<a href="' . htmlspecialchars( SpecialPage::getTitleFor( 'SystemGiftManager' )->getFullURL() ) . '">' .
-					$this->msg( 'ga-viewlist' )->plain() . '</a>
+					$this->msg( 'ga-viewlist' )->escaped() . '</a>
 			</div>
 			<div class="ga-container">' .
-				$this->msg( 'ga-remove-success-message', $gift['gift_name'] )->plain() .
+				$this->msg( 'ga-remove-success-message', $gift['gift_name'] )->escaped() .
 				'<div class="visualClear"></div>
 			</div>';
 
@@ -122,25 +135,26 @@ class RemoveMasterSystemGift extends UnlistedSpecialPage {
 		$systemGiftIcon = new SystemGiftIcon( $this->gift_id, 'l' );
 		$icon = $systemGiftIcon->getIconHTML();
 
-		$this->getOutput()->setPageTitle( $this->msg( 'ga-remove-title', $gift['gift_name'] )->plain() );
+		$this->getOutput()->setPageTitle( $this->msg( 'ga-remove-title', $gift['gift_name'] ) );
 
 		$output = '<div class="back-links">
 			<a href="' . htmlspecialchars( SpecialPage::getTitleFor( 'SystemGiftManager' )->getFullURL() ) . '">' .
-				$this->msg( 'ga-viewlist' )->plain() . '</a>
+				$this->msg( 'ga-viewlist' )->escaped() . '</a>
 		</div>
 		<form action="" method="post" enctype="multipart/form-data" name="form1">
 			<div class="ga-remove-message">' .
-				$this->msg( 'ga-delete-message', $gift['gift_name'] ) .
+				$this->msg( 'ga-delete-message', $gift['gift_name'] )->escaped() .
 			'</div>
 			<div class="ga-container">' .
 				$icon .
-				'<div class="ga-name">' . $gift['gift_name'] . '</div>
+				'<div class="ga-name">' . htmlspecialchars( $gift['gift_name'], ENT_QUOTES ) . '</div>
 			</div>
 			<div class="visualClear"></div>
 			<div class="ga-buttons">
-				<input type="button" class="site-button" value="' . $this->msg( 'ga-remove' )->plain() . '" size="20" onclick="document.form1.submit()" />
-				<input type="button" class="site-button" value="' . $this->msg( 'cancel' )->plain() . '" size="20" onclick="history.go(-1)" />
+				<input type="submit" class="site-button" value="' . $this->msg( 'ga-remove' )->escaped() . '" size="20" />
+				<input type="button" class="site-button" value="' . $this->msg( 'cancel' )->escaped() . '" size="20" onclick="history.go(-1)" />
 			</div>
+			<input type="hidden" name="wpEditToken" value="' . htmlspecialchars( $this->getUser()->getEditToken(), ENT_QUOTES ) . '" />
 		</form>';
 
 		return $output;

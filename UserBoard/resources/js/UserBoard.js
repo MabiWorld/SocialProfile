@@ -1,7 +1,7 @@
 var UserBoard = {
 	posted: 0,
 
-	sendMessage: function( perPage ) {
+	sendMessage: function ( perPage ) {
 		if ( !perPage ) {
 			perPage = 25;
 		}
@@ -11,13 +11,13 @@ var UserBoard = {
 		if ( message && !UserBoard.posted ) {
 			UserBoard.posted = 1;
 			var messageType = document.getElementById( 'message_type' ).value;
-			( new mw.Api() ).postWithToken( 'edit', {
+			( new mw.Api() ).postWithToken( 'csrf', {
 				action: 'socialprofile-send-message',
 				format: 'json',
 				username: recipient,
 				message: message,
 				type: messageType
-			} ).done( function() {
+			} ).done( function () {
 				UserBoard.posted = 0;
 				var user_1, user_2;
 				if ( sender ) { // it's a board to board
@@ -28,37 +28,39 @@ var UserBoard = {
 					user_2 = '';
 				}
 				var params = ( user_2 ) ? '&conv=' + encodeURIComponent( user_2 ) : '';
-				var url = mediaWiki.config.get( 'wgScriptPath' ) + '/index.php?title=Special:UserBoard&user=' + encodeURIComponent( user_1 ) + params;
+				var url = mw.config.get( 'wgScriptPath' ) + '/index.php?title=Special:UserBoard&user=' + encodeURIComponent( user_1 ) + params;
 				window.location = url;
 			} );
 		}
 	},
 
-	deleteMessage: function( id ) {
-		if ( window.confirm( mediaWiki.msg( 'userboard_confirmdelete' ) ) ) {
-			( new mw.Api() ).postWithToken( 'edit', {
+	deleteMessage: function ( id ) {
+		if ( window.confirm( mw.msg( 'userboard_confirmdelete' ) ) ) {
+			( new mw.Api() ).postWithToken( 'csrf', {
 				action: 'socialprofile-delete-message',
 				format: 'json',
-				'id': id
-			} ).done( function() {
-				//window.location.reload();
+				id: id
+			} ).done( function () {
+				// window.location.reload();
 				// 1st parent = span.user-board-red
 				// 2nd parent = div.user-board-message-links
 				// 3rd parent = div.user-board-message = the container of a msg
-				jQuery( '[data-message-id="' + id + '"]' ).parent().parent().parent().hide( 100 );
+				$( '[data-message-id="' + id + '"]' ).parent().parent().parent().hide( 100 );
 			} );
 		}
 	}
 };
 
-jQuery( function() {
+$( function () {
 	// "Delete" link
-	jQuery( 'span.user-board-red a' ).on( 'click', function() {
-		UserBoard.deleteMessage( jQuery( this ).data( 'message-id' ) );
+	$( 'span.user-board-red a' ).on( 'click', function ( e ) {
+		e.preventDefault();
+		UserBoard.deleteMessage( $( this ).data( 'message-id' ) );
 	} );
 
 	// Submit button
-	jQuery( 'div.user-page-message-box-button input[type="button"]' ).on( 'click', function() {
-		UserBoard.sendMessage( jQuery( this ).data( 'per-page' ) );
+	$( 'div.user-page-message-box-button input[type="submit"]' ).on( 'click', function ( e ) {
+		e.preventDefault();
+		UserBoard.sendMessage( $( this ).data( 'per-page' ) );
 	} );
 } );

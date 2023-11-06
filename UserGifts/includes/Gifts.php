@@ -6,18 +6,22 @@
  */
 class Gifts {
 
-	// phpcs:ignore Squiz.WhiteSpace.ScopeClosingBrace.ContentBefore
-	public function __construct() {}
-
 	/**
 	 * Adds a gift to the database
-	 * @param string $gift_name name of the gift, as supplied by the user
-	 * @param string $gift_description a short description about the gift, as supplied by the user
+	 *
+	 * @param User $user User who created the gift
+	 * @param string $gift_name Name of the gift, as supplied by the user
+	 * @param string $gift_description A short description about the gift, as supplied by the user
 	 * @param int $gift_access 0 by default
+	 *
+	 * @return int
 	 */
-	static function addGift( $gift_name, $gift_description, $gift_access = 0 ) {
-		global $wgUser;
-
+	public static function addGift(
+		User $user,
+		$gift_name,
+		$gift_description,
+		$gift_access = 0
+	) {
 		$dbw = wfGetDB( DB_MASTER );
 
 		$dbw->insert(
@@ -25,25 +29,27 @@ class Gifts {
 			[
 				'gift_name' => $gift_name,
 				'gift_description' => $gift_description,
-				'gift_createdate' => date( 'Y-m-d H:i:s' ),
-				'gift_creator_user_id' => $wgUser->getId(),
-				'gift_creator_user_name' => $wgUser->getName(),
+				'gift_createdate' => $dbw->timestamp( date( 'Y-m-d H:i:s' ) ),
+				'gift_creator_actor' => $user->getActorId(),
 				'gift_access' => $gift_access,
-			], __METHOD__
+			],
+			__METHOD__
 		);
 		return $dbw->insertId();
 	}
 
 	/**
 	 * Updates a gift's info in the database
-	 * @param $id int internal ID number of the gift that we want to update
-	 * @param $gift_namemixed name of the gift, as supplied by the user
-	 * @param $gift_descriptionmixed a short description about the gift, as supplied by the user
-	 * @param $gift_access int 0 by default
+	 *
+	 * @param int $id Internal ID number of the gift that we want to update
+	 * @param string $gift_name Name of the gift, as supplied by the user
+	 * @param string $gift_description A short description about the gift, as supplied by the user
+	 * @param int $access 0 by default
 	 */
 	public static function updateGift( $id, $gift_name, $gift_description, $access = 0 ) {
 		$dbw = wfGetDB( DB_MASTER );
-		$dbw->update( 'gift',
+		$dbw->update(
+			'gift',
 			/* SET */[
 				'gift_name' => $gift_name,
 				'gift_description' => $gift_description,
@@ -58,44 +64,47 @@ class Gifts {
 	 * Gets information, such as name and description, about a given gift from the database
 	 *
 	 * @param int $id internal ID number of the gift
-	 * @return Gift information, including ID number, name, description,
+	 * @return array Gift information, including ID number, name, description,
 	 * creator's user name and ID and gift access
 	 */
-	static function getGift( $id ) {
+	public static function getGift( $id ) {
 		if ( !is_numeric( $id ) ) {
-			return '';
+			return [];
 		}
 		$dbr = wfGetDB( DB_REPLICA );
-		$res = $dbr->select(
+		$row = $dbr->selectRow(
 			'gift',
 			[
-				'gift_id', 'gift_name', 'gift_description',
-				'gift_creator_user_id', 'gift_creator_user_name', 'gift_access'
+				'gift_id', 'gift_name', 'gift_description', 'gift_creator_actor',
+				'gift_access'
 			],
-			[ "gift_id = {$id}" ],
-			__METHOD__,
-			[ 'LIMIT' => 1, 'OFFSET' => 0 ]
+			[ 'gift_id' => $id ],
+			__METHOD__
 		);
-		$row = $dbr->fetchObject( $res );
 		$gift = [];
 		if ( $row ) {
 			$gift['gift_id'] = $row->gift_id;
 			$gift['gift_name'] = $row->gift_name;
 			$gift['gift_description'] = $row->gift_description;
-			$gift['creator_user_id'] = $row->gift_creator_user_id;
-			$gift['creator_user_name'] = $row->gift_creator_user_name;
+			$gift['creator_actor'] = $row->gift_creator_actor;
 			$gift['access'] = $row->gift_access;
 		}
 		return $gift;
 	}
 
-	static function getCustomCreatedGiftCount( $user_id ) {
+	/**
+	 * Get the amount of custom gifts the given user has created.
+	 *
+	 * @param User $user
+	 * @return int
+	 */
+	public static function getCustomCreatedGiftCount( $user ) {
 		$dbr = wfGetDB( DB_REPLICA );
 		$gift_count = 0;
 		$s = $dbr->selectRow(
 			'gift',
 			[ 'COUNT(gift_id) AS count' ],
-			[ 'gift_creator_user_id' => $user_id ],
+			[ 'gift_creator_actor' => $user->getActorId() ],
 			__METHOD__
 		);
 		if ( $s !== false ) {
@@ -104,13 +113,25 @@ class Gifts {
 		return $gift_count;
 	}
 
-	static function getGiftCount() {
+	/**
+	 * Get the total amount of gifts.
+	 *
+	 * If the parameter is passed to this method, gets the total amount of gifts that have never been
+	 * given out.
+	 *
+	 * Used by Special:GiveGift with the param and by Special:GiftManager without the param.
+	 *
+	 * @param bool $neverGivenOutOnly
+	 *
+	 * @return int
+	 */
+	public static function getGiftCount( $neverGivenOutOnly = true ) {
 		$dbr = wfGetDB( DB_REPLICA );
 		$gift_count = 0;
 		$s = $dbr->selectRow(
 			'gift',
 			[ 'COUNT(gift_id) AS count' ],
-			[ 'gift_given_count' => $gift_count ],
+			$neverGivenOutOnly ? [ 'gift_given_count' => $gift_count ] : [],
 			__METHOD__
 		);
 		if ( $s !== false ) {

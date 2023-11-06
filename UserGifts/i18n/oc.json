@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"Cedric31",
+			"Jack Phoenix",
 			"Jfblanc"
 		]
 	},
@@ -30,12 +31,12 @@
 	"g-error-do-not-own": "Possedètz pas aqueste present.",
 	"g-error-message-blocked": "Sètz blocat(ada) e doncas, podètz pas donar de presents",
 	"g-error-message-invalid-link": "Lo ligam qu'avètz provesit es invalid.",
-	"g-error-message-login": "Vos cal connectar per donar de presents",
+	"g-error-message-login": "Vos cal [[Special:UserLogin|connectar]] per donar de presents.",
 	"g-error-message-no-user": "L'utilizaire qu'ensajatz de veire existís pas.",
 	"g-error-message-to-yourself": "Podètz pas vos donar un present a vos meteis.",
 	"g-error-title": "Ops, avètz pres un marrit torn !",
 	"g-file-instructions": "Vòstre imatge deu èsser jpeg, png o gif (mas pas animada) e deu èsser mai pichona que 100 Ko.",
-	"g-from": "de <a href=\"$1\">$2</a>",
+	"g-from": "de [[User:$1|$1]]",
 	"g-gift": "present",
 	"g-gift-name": "nom del present",
 	"g-give-gift": "Donar lo present",
@@ -45,12 +46,11 @@
 	"g-give-enter-friend-title": "Se coneissètz lo nom de l'utilizaire, picatz-o çaijós",
 	"g-given": "Lo present es estat donat $1 {{PLURAL:$1|còp|còps}}",
 	"g-give-list-friends-title": "Seleccionatz dempuèi la lista de vòstres amics",
-	"g-give-list-select": "seleccionatz un amic",
 	"g-give-separator": "o",
 	"g-give-no-user-message": "Los presents e prèmis son plan per far conéisser vòstres amics !",
 	"g-give-no-user-title": "A qui volètz donar un present ?",
 	"g-give-to-user-title": "Mandar lo present « $1 » a $2",
-	"g-give-to-user-message": "Enveja de donar un present diferent <a href=\"$2\">un present diferent</a> a $1 ?",
+	"g-give-to-user-message": "Enveja de donar [[Special:GiveGift/$1|un present diferent]] a $1 ?",
 	"g-go-back": "Tornar",
 	"g-imagesbelow": "Los imatges que seràn utilizats sul site son afichats çaijós",
 	"g-large": "Grand",

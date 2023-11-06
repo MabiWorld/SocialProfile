@@ -5,50 +5,37 @@ use MediaWiki\Logger\LoggerFactory;
 /**
  * This object allows for updating the amount (by increasing,
  * decreasing, and clearing) as well as retrieving the amount
- * of user gifts for a user based on their ID.
+ * of user gifts for a given user.
  */
 class UserGiftCount {
 	/**
-	 * @var BagOStuff $cache
+	 * @var WANObjectCache
 	 */
 	private $cache;
 
 	/**
-	 * @var int $userId
+	 * @var User
 	 */
-	private $userId;
+	private $user;
 
-	public function __construct( $cache, $userId ) {
+	public function __construct( $cache, $user ) {
 		$this->cache = $cache;
-		$this->userId = $userId;
+		$this->user = $user;
 	}
 
 	/**
-	 * Increase the amount of new gifts for the user.
-	 */
-	public function increase() {
-		$this->cache->incr( $this->makeKey() );
-	}
-
-	/**
-	 * Decrease the amount of new gifts for the user.
-	 */
-	public function decrease() {
-		$this->cache->decr( $this->makeKey() );
-	}
-
-	/**
-	 * Clear the new gift counter for the user.
-	 * This is done by setting the value of the memcached key to 0.
+	 * Purge the cache for increase the amount of new gifts for the user.
 	 */
 	public function clear() {
-		$this->cache->set( $this->makeKey(), 0 );
+		$this->cache->delete( $this->makeKey() );
 	}
 
 	/**
 	 * Get the amount of new gifts for the user given an ID.
+	 *
 	 * First tries cache (memcached) and if that succeeds, returns the cached
 	 * data. If that fails, the count is fetched from the database.
+	 *
 	 * UserWelcome.php calls this function.
 	 *
 	 * @return int Amount of new gifts
@@ -66,35 +53,35 @@ class UserGiftCount {
 	}
 
 	/**
-	 * Get the amount of new gifts for the user with ID = $user_id
-	 * from memcached. If successful, returns the amount of new gifts.
+	 * Get the amount of new gifts for the user from cache.
+	 * If successful, returns the amount of new gifts.
 	 *
-	 * @return int Amount of new gifts
+	 * @return int|false Amount of new gifts
 	 */
 	private function getFromCache() {
 		$data = $this->cache->get( $this->makeKey() );
 
 		if ( $data != '' ) {
 			$logger = LoggerFactory::getInstance( 'SocialProfile' );
-			$logger->debug( "Got new gift count of {data} for id {user_id} from cache\n", [
+			$logger->debug( "Got new gift count of {data} for user name {user_name} from cache\n", [
 				'data' => $data,
-				'user_id' => $this->userId
+				'user_name' => $this->user->getName()
 			] );
 
-			return $data;
 		}
+
+		return $data;
 	}
 
 	/**
-	 * Get the amount of new gifts for the user with ID = $user_id from the
-	 * database and stores it in memcached.
+	 * Get the amount of new gifts for the user from the database and cache it.
 	 *
 	 * @return int Amount of new gifts
 	 */
 	private function getFromDatabase() {
 		$logger = LoggerFactory::getInstance( 'SocialProfile' );
-		$logger->debug( "Got new gift count for id {user_id} from DB\n", [
-			'user_id' => $this->userId
+		$logger->debug( "Got new gift count for id {user_name} from DB\n", [
+			'user_name' => $this->user->getName()
 		] );
 
 		$dbr = wfGetDB( DB_REPLICA );
@@ -104,7 +91,7 @@ class UserGiftCount {
 			'user_gift',
 			[ 'COUNT(*) AS count' ],
 			[
-				'ug_user_id_to' => $this->userId,
+				'ug_actor_to' => $this->user->getActorId(),
 				'ug_status' => 1
 			],
 			__METHOD__
@@ -122,6 +109,6 @@ class UserGiftCount {
 	 * @return string
 	 */
 	private function makeKey() {
-		return $this->cache->makeKey( 'user_gifts', 'new_count', $this->userId );
+		return $this->cache->makeKey( 'user_gifts', 'new_count', 'actor_id', $this->user->getActorId() );
 	}
 }

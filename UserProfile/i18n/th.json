@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"Ans",
+			"Geonuch",
 			"Passawuth",
 			"Woraponboonkerd"
 		]
@@ -24,7 +25,7 @@
 	"user-remove-foe": "ลบออกจากการเป็นศัตรู",
 	"user-send-message": "ส่งข้อความ",
 	"user-send-gift": "ส่งของขวัญ",
-	"user-contributions": "งานเขียนทั้งหมด",
+	"user-contributions": "การเข้ามีส่วนร่วม",
 	"user-stats-edits": "{{PLURAL:$1|การแก้ไข|การแก้ไขทั้งหมด}}",
 	"user-stats-votes": "{{PLURAL:$1|การลงคะแนน|การลงคะแนนทั้งหมด}}",
 	"user-stats-comments": "{{PLURAL:$1|ความเห็น|ความเห็น}}",
@@ -78,8 +79,6 @@
 	"user-recent-activity-user-message": "ได้ส่งข้อความไปยัง",
 	"user-recent-activity-network-update": "ได้ให้ความคิดแก่",
 	"user-recent-system-gift": "ได้รับรางวัล",
-	"user-profile-update-notloggedin-title": "ไม่สามารถแก้ไขโปรไฟล์ของคุณได้ก่อนที่จะลงชื่อเข้าใช้",
-	"user-profile-update-notloggedin-text": "ไม่สามารถแก้ไขโปรไฟล์ของคุณได้ก่อนที่จะลงชื่อเข้าใช้\n<br />คลิก[[Special:UserLogin|ที่นี่]]เพื่อลงชื่อเข้าใช้ หรือคลิก[[Special:UserLogin/signup|ที่นี่]]เพื่อลงทะเบียน",
 	"user-profile-update-saved": "โปรไฟล์ของคุณได้ถูกบันทึกแล้ว",
 	"user-profile-update-log-section": "ส่วนที่เปลี่ยนไป",
 	"user-profile-default-country": "สหรัฐอเมริกา",
@@ -129,13 +128,6 @@
 	"user-profile-tidbits-worstmoment": "ช่วงเวลากีฬาที่เลวร้ายที่สุด",
 	"user-profile-tidbits-favathlete": "นักกีฬาที่ชื่นชอบและเหตุผล",
 	"user-profile-tidbits-leastfavathlete": "นักกีฬาที่ชื่นชอบน้อยที่สุดและเหตุผล",
-	"user-profile-sports-sport": "กีฬา",
-	"user-profile-sports-title": "แก้ไขประเภทกีฬาและทีมที่คุณชอบ",
-	"user-profile-sports-notloggedintitle": "อุ๊ย!",
-	"user-profile-sports-notloggedintext": "คุณต้องลงชื่อเข้าใช้เพื่อที่จะแก้ไขโปรไฟล์ของคุณ",
-	"user-profile-sports-teamremoved": "ทีมของคุณได้ถูกลบแล้ว",
-	"user-profile-sports-teamsaved": "ทีมของคุณได้ถูกบันทึกแล้ว",
-	"user-profile-sports-addmore": "เพิ่มกีฬา/ทีมอีก",
 	"uploadavatar": "อัปโหลดรูปภาพของคุณ",
 	"user-profile-picture-yourpicture": "รูปภาพของคุณ",
 	"user-profile-picture-yourpicturestext": "ด้านล่างนี้คือรูปที่จะปรากฎบนโปรไฟล์, หน้าเครือข่าย และความเห็นของคุณ",
@@ -156,7 +148,7 @@
 	"user-wiki-link": "หน้าผู้ใช้วิกิ",
 	"user-type-toggle-old": "ใช้หน้าผู้ใช้วิกิ",
 	"user-type-toggle-new": "ใช้หน้าสังคมผู้ใช้",
-	"user-board-login-message": "คุณต้อง<a href=\"$1\">ลงชื่อเข้าใช้</a>เพื่อส่งข้อความให้กับผู้ใช้คนอื่นๆ",
+	"user-board-login-message": "คุณต้อง[[Special:UserLogin|ลงชื่อเข้าใช้]]เพื่อส่งข้อความให้กับผู้ใช้คนอื่นๆ",
 	"removeavatar": "ลบอวาต้าออก",
 	"givegift": "ให้ของขวัญ",
 	"viewgifts": "ดูของขวัญ",

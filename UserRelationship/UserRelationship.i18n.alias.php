@@ -87,6 +87,14 @@ $specialPageAliases['hsb'] = [
 	'ViewRelationships' => [ 'Poćahi_sej_wobhladać' ],
 ];
 
+/** Croatian (hrvatski) */
+$specialPageAliases['hr'] = [
+	'AddRelationship' => [ 'Dodaj_vezu', 'DodavanjeVeza' ],
+	'RemoveRelationship' => [ 'Ukloni_vezu' ],
+	'ViewRelationshipRequests' => [ 'Prikaži_zahtjevane_veze' ],
+	'ViewRelationships' => [ 'Prikaži_veze', 'PregledVeza' ],
+];
+
 /** Haitian (Kreyòl ayisyen) */
 $specialPageAliases['ht'] = [
 	'AddRelationship' => [ 'AjouteRelasyon' ],
@@ -187,7 +195,7 @@ $specialPageAliases['sr-ec'] = [
 	'AddRelationship' => [ 'Додај_везу' ],
 	'RemoveRelationship' => [ 'Уклони_везу' ],
 	'ViewRelationshipRequests' => [ 'Прикажи_захтеве_везе' ],
-	'ViewRelationships' => [ 'Прикажи_везу' ],
+	'ViewRelationships' => [ 'Прикажи_везе', 'Прикажи_везу' ],
 ];
 
 /** Serbian (Latin script) (srpski (latinica)) */
@@ -195,7 +203,7 @@ $specialPageAliases['sr-el'] = [
 	'AddRelationship' => [ 'Dodaj_vezu' ],
 	'RemoveRelationship' => [ 'Ukloni_vezu' ],
 	'ViewRelationshipRequests' => [ 'Prikaži_zahtevane_veze' ],
-	'ViewRelationships' => [ 'Prikaži_vezu' ],
+	'ViewRelationships' => [ 'Prikaži_veze', 'Prikaži_vezu' ],
 ];
 
 /** Swahili (Kiswahili) */
@@ -230,6 +238,8 @@ $specialPageAliases['zh-hans'] = [
 
 /** Traditional Chinese (中文（繁體)) */
 $specialPageAliases['zh-hant'] = [
-	'AddRelationship' => [ '加入關聯' ],
-	'RemoveRelationship' => [ '移除關聯' ],
+	'AddRelationship' => [ '建立關係' ],
+	'RemoveRelationship' => [ '移除關係' ],
+	'ViewRelationshipRequests' => [ '檢視關係申請' ],
+	'ViewRelationships' => [ '檢視關係' ],
 ];

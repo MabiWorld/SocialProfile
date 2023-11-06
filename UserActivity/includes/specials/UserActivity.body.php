@@ -63,6 +63,7 @@ class UserHome extends SpecialPage {
 			$edits = 1;
 		}
 		if ( $item_type == 'votes' || $item_type == 'all' ) {
+			// @phan-suppress-next-line PhanPluginRedundantAssignment
 			$votes = 0;
 		}
 		if ( $item_type == 'comments' || $item_type == 'all' ) {
@@ -143,7 +144,7 @@ class UserHome extends SpecialPage {
 
 		$output .= '<div class="user-home-feed">';
 
-		$rel = new UserActivity( $user->getName(), ( ( $rel_type == 1 ) ? ' friends' : 'foes' ), 50 );
+		$rel = new UserActivity( $user, ( ( $rel_type == 1 ) ? ' friends' : 'foes' ), 50 );
 		$rel->setActivityToggle( 'show_edits', $edits );
 		$rel->setActivityToggle( 'show_votes', $votes );
 		$rel->setActivityToggle( 'show_comments', $comments );

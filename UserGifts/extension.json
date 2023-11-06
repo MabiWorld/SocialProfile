@@ -17,6 +17,8 @@
 		"UserGiftsAlias": "includes/UserGifts.alias.php"
 	},
 	"AutoloadClasses": {
+		"MigrateOldGiftsUserColumnsToActor": "maintenance/migrateOldGiftsUserColumnsToActor.php",
+		"MigrateOldUserGiftsUserColumnsToActor": "maintenance/migrateOldUserGiftsUserColumnsToActor.php",
 		"Gifts": "includes/Gifts.php",
 		"UserGiftCount": "includes/UserGiftCount.php",
 		"UserGiftIcon": "includes/UserGiftIcon.php",
@@ -67,7 +69,10 @@
 			"styles": "css/SpecialViewGifts.css"
 		},
 		"ext.socialprofile.usergifts.js": {
-			"scripts": "js/UserGifts.js"
+			"scripts": "js/UserGifts.js",
+			"messages": [
+				"g-select-gift"
+			]
 		}
 	},
 	"ResourceFileModulePaths": {

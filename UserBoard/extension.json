@@ -14,6 +14,7 @@
 		]
 	},
 	"AutoloadClasses": {
+		"MigrateOldUserBoardUserColumnsToActor": "maintenance/migrateOldUserBoardUserColumnsToActor.php",
 		"EchoUserBoardMessagePresentationModel": "includes/EchoUserBoardMessagePresentationModel.php",
 		"SpecialBoardBlast": "includes/specials/SpecialSendBoardBlast.php",
 		"SpecialViewUserBoard": "includes/specials/SpecialUserBoard.php",
@@ -50,6 +51,10 @@
 				"userboard_confirmdelete"
 			]
 		},
+		"ext.socialprofile.userboard.wikiEditor": {
+			"scripts": "js/WikiEditorIntegration.js",
+			"dependencies": "ext.wikiEditor"
+		},
 		"ext.socialprofile.userboard.css": {
 			"styles": "css/UserBoard.css"
 		},
@@ -60,8 +65,8 @@
 			"scripts": "js/BoardBlast.js",
 			"messages": [
 				"boardblast-js-sending",
-				"boardblast-js-error-missing-message",
-				"boardblast-js-error-missing-user"
+				"boardblast-error-missing-message",
+				"boardblast-error-missing-user"
 			]
 		}
 	},

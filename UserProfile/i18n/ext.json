@@ -1,20 +1,21 @@
 {
 	"@metadata": {
 		"authors": [
-			"Better"
+			"Better",
+			"Julio Nepote"
 		]
 	},
 	"populateuserprofiles": "Perfilis d'usuáriu popularis",
 	"user-count-separator": "$1 de $2",
 	"user-view-all": "Vel tós",
 	"user-upload-image": "Empuntal imahin",
-	"user-edit-this": "Eital estu",
-	"user-edit-profile": "Eital perfil",
+	"user-edit-this": "Edital estu",
+	"user-edit-profile": "Edital perfil",
 	"user-upload-avatar": "Empuntal avatal",
 	"user-watchlist": "La mi lista e seguimientu",
 	"user-meet-people": "Alcuentral henti",
-	"user-add-friend": "Añiil cumu amigu",
-	"user-add-foe": "Añiil cumu enemigu",
+	"user-add-friend": "Añidil comu amigu",
+	"user-add-foe": "Añidil comu enemigu",
 	"user-remove-friend": "Esborral cumu amigu",
 	"user-remove-foe": "Esborral cumu enemigu",
 	"user-send-message": "Envial mensahi",
@@ -57,8 +58,6 @@
 	"user-recent-activity-foe": "Es agora enemigu de",
 	"user-recent-activity-user-message": "Envió un mensahi a",
 	"user-recent-system-gift": "Recibió un prémiu",
-	"user-profile-update-notloggedin-title": "Nu es posibri eital el tu perfil sin entral ena tu cuenta",
-	"user-profile-update-notloggedin-text": "Nu es posibri eital el tu perfil sin entral enta tu cuenta.\nPursa [[Special:UserLogin|aquina]] p'abril la tu cuenta, u [[Special:UserLogin/signup|aquina]] pa rustrilti.",
 	"user-profile-update-saved": "El tu perfil á siu emburacau",
 	"user-profile-update-log-section": "chambó la seción",
 	"user-profile-default-country": "Estaus Unius",
@@ -95,11 +94,6 @@
 	"user-profile-preferences-emails": "Notificacionis pol email",
 	"user-profile-update-button": "Atualiçal",
 	"user-profile-tidbits-favathlete": "Aleta preferiu i pol qué",
-	"user-profile-sports-sport": "Eporti",
-	"user-profile-sports-notloggedintitle": "Hui!",
-	"user-profile-sports-notloggedintext": "Ebis estal rustriu pa eital el tu perfil",
-	"user-profile-sports-teamremoved": "El tu equipu á siu esborrau",
-	"user-profile-sports-teamsaved": "Los tus equipus án siu emburacaus",
 	"uploadavatar": "Empuntal la tu imahin",
 	"user-profile-picture-large": "Grandi",
 	"user-profile-picture-medlarge": "Meyu - Grandi",
@@ -111,10 +105,10 @@
 	"user-profile-goback": "Gorvel",
 	"user-no-images": "Nu s'án empuntau imahin",
 	"edit-profile-title": "Eital el tu perfil",
-	"user-page-link": "Páhina d'usuáriu",
+	"user-page-link": "Página d'usuariu",
 	"user-social-profile-link": "Perfil social",
 	"user-wiki-link": "Páhina d'usuáriu wiki",
 	"user-type-toggle-old": "Gastal la páhina d'usuáriu wiki",
 	"user-type-toggle-new": "Gastal la páhina d'usuáriu social",
-	"user-board-login-message": "Ebis estal <a href=\"$1\">rustriu</a> pa envial mensahis a otrus usuárius"
+	"user-board-login-message": "Ebis estal [[Special:UserLogin|rustriu]] pa envial mensahis a otrus usuárius"
 }

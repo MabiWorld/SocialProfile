@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
 
 class TopUsersPoints extends SpecialPage {
 
@@ -14,8 +15,9 @@ class TopUsersPoints extends SpecialPage {
 	 * @param string|null $par
 	 */
 	public function execute( $par ) {
-		global $wgMemc, $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly, $wgUserLevels;
+		global $wgUserStatsTrackWeekly, $wgUserStatsTrackMonthly, $wgUserLevels;
 
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$linkRenderer = $this->getLinkRenderer();
 		$out = $this->getOutput();
 		$logger = LoggerFactory::getInstance( 'SocialProfile' );
@@ -34,8 +36,8 @@ class TopUsersPoints extends SpecialPage {
 		$user_list = [];
 
 		// Try cache
-		$key = $wgMemc->makeKey( 'user_stats', 'top', 'points', $realcount );
-		$data = $wgMemc->get( $key );
+		$key = $cache->makeKey( 'user_stats', 'top', 'points', $realcount );
+		$data = $cache->get( $key );
 
 		if ( $data != '' ) {
 			$logger->debug( "Got top users by points ({count}) from cache\n", [
@@ -48,13 +50,14 @@ class TopUsersPoints extends SpecialPage {
 				'count' => $count
 			] );
 
+			$params = [];
 			$params['ORDER BY'] = 'stats_total_points DESC';
 			$params['LIMIT'] = $count;
 			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'user_stats',
-				[ 'stats_user_id', 'stats_user_name', 'stats_total_points' ],
-				[ 'stats_user_id <> 0' ],
+				[ 'stats_actor', 'stats_total_points' ],
+				[ 'stats_actor IS NOT NULL' ],
 				__METHOD__,
 				$params
 			);
@@ -62,7 +65,7 @@ class TopUsersPoints extends SpecialPage {
 			$loop = 0;
 
 			foreach ( $res as $row ) {
-				$user = User::newFromId( $row->stats_user_id );
+				$user = User::newFromId( $row->stats_actor );
 				// Ensure that the user exists for real.
 				// Otherwise we'll be happily displaying entries for users that
 				// once existed by no longer do (account merging is a thing,
@@ -73,10 +76,9 @@ class TopUsersPoints extends SpecialPage {
 				// in the top lists.
 				$exists = $user->loadFromId();
 
-				if ( $exists && !$user->isBlocked() && !$user->isBot() ) {
+				if ( $exists && !$user->getBlock() && !$user->isBot() ) {
 					$user_list[] = [
-						'user_id' => $row->stats_user_id,
-						'user_name' => $row->stats_user_name,
+						'actor' => $row->stats_actor,
 						'points' => $row->stats_total_points
 					];
 					$loop++;
@@ -87,23 +89,23 @@ class TopUsersPoints extends SpecialPage {
 				}
 			}
 
-			$wgMemc->set( $key, $user_list, 60 * 5 );
+			$cache->set( $key, $user_list, 60 * 5 );
 		}
 
 		$recent_title = SpecialPage::getTitleFor( 'TopUsersRecent' );
 
 		$output = '<div class="top-fan-nav">
-			<h1>' . htmlspecialchars( $this->msg( 'top-fans-by-points-nav-header' )->plain() ) . '</h1>
-			<p><b>' . htmlspecialchars( $this->msg( 'top-fans-total-points-link' )->plain() ) . '</b></p>';
-
-		if ( $wgUserStatsTrackWeekly ) {
-			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=monthly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-monthly-points-link' )->plain() ) . '</a></p>';
-		}
+			<h1>' . $this->msg( 'top-fans-by-points-nav-header' )->escaped() . '</h1>
+			<p><b>' . $this->msg( 'top-fans-total-points-link' )->escaped() . '</b></p>';
 
 		if ( $wgUserStatsTrackMonthly ) {
+			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=monthly' ) ) . '">' .
+				$this->msg( 'top-fans-monthly-points-link' )->escaped() . '</a></p>';
+		}
+
+		if ( $wgUserStatsTrackWeekly ) {
 			$output .= '<p><a href="' . htmlspecialchars( $recent_title->getFullURL( 'period=weekly' ) ) . '">' .
-				htmlspecialchars( $this->msg( 'top-fans-weekly-points-link' )->plain() ) . '</a></p>';
+				$this->msg( 'top-fans-weekly-points-link' )->escaped() . '</a></p>';
 		}
 
 		// Build nav of stats by category based on MediaWiki:Topfans-by-category
@@ -113,7 +115,7 @@ class TopUsersPoints extends SpecialPage {
 
 		if ( !$byCategoryMessage->isDisabled() ) {
 			$output .= '<h1 style="margin-top:15px !important;">' .
-				$this->msg( 'top-fans-by-category-nav-header' )->plain() . '</h1>';
+				$this->msg( 'top-fans-by-category-nav-header' )->escaped() . '</h1>';
 
 			$lines = explode( "\n", $byCategoryMessage->text() );
 			foreach ( $lines as $line ) {
@@ -128,7 +130,7 @@ class TopUsersPoints extends SpecialPage {
 					// message (refs bug #30030)
 					$msgObj = $this->msg( $link_text );
 					if ( !$msgObj->isDisabled() ) {
-						$link_text = $msgObj->parse();
+						$link_text = $msgObj->text();
 					}
 
 					$output .= '<p> ';
@@ -150,13 +152,16 @@ class TopUsersPoints extends SpecialPage {
 		$last_level = '';
 
 		foreach ( $user_list as $user ) {
-			$user_title = Title::makeTitle( NS_USER, $user['user_name'] );
-			$avatar = new wAvatar( $user['user_id'], 'm' );
+			$u = User::newFromActorId( $user['actor'] );
+			if ( !$u ) {
+				continue;
+			}
+			$avatar = new wAvatar( $u->getId(), 'm' );
 			$commentIcon = $avatar->getAvatarURL();
 
 			// Break list into sections based on User Level if it's defined for this site
 			if ( is_array( $wgUserLevels ) ) {
-				$user_level = new UserLevel( number_format( $user['points'] ) );
+				$user_level = new UserLevel( $user['points'] );
 				if ( $user_level->getLevelName() != $last_level ) {
 					$output .= '<div class="top-fan-row"><div class="top-fan-level">
 						' . htmlspecialchars( $user_level->getLevelName() ) . '
@@ -165,7 +170,7 @@ class TopUsersPoints extends SpecialPage {
 				$last_level = $user_level->getLevelName();
 			}
 
-			$userLink = $linkRenderer->makeLink( $user_title, $user['user_name'] );
+			$userLink = $linkRenderer->makeLink( $u->getUserPage(), $u->getName() );
 			$output .= "<div class=\"top-fan-row\">
 				<span class=\"top-fan-num\">{$x}.</span>
 				<span class=\"top-fan\">

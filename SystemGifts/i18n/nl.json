@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"GerardM",
+			"McDutchie",
 			"SPQRobin",
 			"Siebrand",
 			"Tvdm"
@@ -11,7 +12,7 @@
 	"ga-addnew": "+ Nieuwe gift toevoegen",
 	"ga-back-edit-gift": "Terug naar gift bewerken",
 	"ga-back-gift-list": "Terug naar giftenlijst",
-	"ga-back-link": "<a href=\"$1\">< Terug naar het profiel van $2</a>",
+	"ga-back-link": "[[User:$1|&lt; Terug naar het profiel van $1]]",
 	"ga-choosefile": "Bestand kiezen:",
 	"ga-count": "$1 heeft $2 {{PLURAL:$2|prijs|prijzen}}.",
 	"ga-create-gift": "Gift aanmaken",
@@ -47,6 +48,7 @@
 	"ga-delete-message": "Weet u zeker dat u de gift \"$1\" wilt verwijderen?\nDit zal hem ook verwijderen van gebruikers die hem ontvangen hebben.",
 	"ga-remove-success-title": "U hebt de gift \"$1\" verwijderd.",
 	"ga-remove-success-message": "De gift \"$1\" is verwijderd.",
+	"ga-user-got-awards": "$1 heeft er $2",
 	"topawards": "Toplijst onderscheidingen",
 	"topawards-edit-title": "Toplijst onderscheidingen - Mijlpalen bewerkingen",
 	"topawards-vote-title": "Toplijst onderscheidingen - Mijlpalen stemmen",
