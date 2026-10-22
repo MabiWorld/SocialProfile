@@ -73,7 +73,7 @@ class NewUsersList {
 		$data = $cache->get( $key );
 
 		if ( !$data || $skipCache ) {
-			$dbr = wfGetDB( DB_REPLICA );
+			$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getMaintenanceConnectionRef( DB_REPLICA );
 
 			if ( $dbr->tableExists( 'user_register_track' ) ) {
 				$res = $dbr->select(
@@ -130,7 +130,7 @@ class NewUsersList {
 				$output .= '<a href="' . htmlspecialchars( $user->getUserPage()->getFullURL() ) .
 					'" rel="nofollow">' . $avatar->getAvatarURL( [ 'title' => $user->getName() ] ) . '</a>';
 
-				if ( ( $x == $count ) || ( $x != 1 ) && ( $x % $per_row == 0 ) ) {
+				if ( ( $x == $count ) || ( ( $x != 1 ) && ( $x % $per_row == 0 ) ) ) {
 					$output .= '<div class="visualClear"></div>';
 				}
 

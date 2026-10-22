@@ -141,34 +141,54 @@ class RemoveAvatar extends SpecialPage {
 	private function onSubmit() {
 		global $wgUploadAvatarInRecentChanges;
 
+		$request = $this->getRequest();
 		$user = $this->getUser();
+
 		// Only privileged users can delete others' avatars, but everyone
 		// can delete their own avatar
 		if ( $this->isUserPrivileged() ) {
-			$user_id = $this->getRequest()->getInt( 'user_id' );
+			$user_id = $request->getInt( 'user_id' );
 			$user_deleted = User::newFromId( $user_id );
 		} else {
 			$user_id = $user->getId();
 			$user_deleted = $user;
 		}
 
-		$this->deleteImage( $user_id, 's' );
-		$this->deleteImage( $user_id, 'm' );
-		$this->deleteImage( $user_id, 'l' );
-		$this->deleteImage( $user_id, 'ml' );
+		self::deleteImage( $user_id, 's' );
+		self::deleteImage( $user_id, 'm' );
+		self::deleteImage( $user_id, 'l' );
+		self::deleteImage( $user_id, 'ml' );
 
 		$log = new LogPage( 'avatar' );
+
 		if ( !$wgUploadAvatarInRecentChanges ) {
 			$log->updateRecentChanges = false;
 		}
-		$log->addEntry(
-			'avatar',
-			$user->getUserPage(),
-			$this->msg( 'user-profile-picture-log-delete-entry', $user_deleted->getName() )
-				->inContentLanguage()->text(),
-			[],
-			$user
-		);
+
+		$reason = $request->getText( 'wpReason' );
+
+		if ( $this->isUserPrivileged() && $reason !== '' ) {
+			$log->addEntry(
+				'avatar',
+				$user->getUserPage(),
+				$this->msg(
+					'user-profile-picture-log-delete-entry-with-reason',
+					$user_deleted->getName(),
+					$reason
+				)->inContentLanguage()->text(),
+				[],
+				$user
+			);
+		} else {
+			$log->addEntry(
+				'avatar',
+				$user->getUserPage(),
+				$this->msg( 'user-profile-picture-log-delete-entry', $user_deleted->getName() )
+					->inContentLanguage()->text(),
+				[],
+				$user
+			);
+		}
 	}
 
 	/**
@@ -249,11 +269,25 @@ class RemoveAvatar extends SpecialPage {
 		if ( !$avatar->isDefault() ) {
 			if ( !$userIsAvatarOwner ) {
 				$out->addHTML( '<div><b>' . $this->msg( 'avatarupload-currentavatar', $user_name )->parse() . '</b></div>' );
-
 			}
 			$out->addHTML( "<div>{$avatar->getAvatarURL()}</div>" );
 
 			$htmlForm = HTMLForm::factory( 'ooui', [], $this->getContext() );
+
+			// Let privileged users specify a reason for the deletion when they're
+			// about to delete another user's avatar (T158621)
+			if ( $userIsPrivileged && !$userIsAvatarOwner ) {
+				$htmlForm->addFields( [
+					// Capital R instead of lowercase so that we can use "wpReason"
+					// as the identifier in onSubmit() instead of "wpreason";
+					// readability matters!
+					'Reason' => [
+						'type' => 'text',
+						'label-message' => 'removeavatar-reason'
+					]
+				] );
+			}
+
 			$htmlForm
 				->addHiddenField( 'user_id', $user_id )
 				->setAction( '' )
@@ -283,9 +317,9 @@ class RemoveAvatar extends SpecialPage {
 	 *
 	 * @param int $id User ID
 	 * @param string $size Size of the avatar image to delete (small, medium or large).
-	 * Doesn't really matter since we're just going to blast 'em all.
+	 *  Doesn't really matter since we're just going to blast 'em all.
 	 */
-	private function deleteImage( $id, $size ) {
+	public static function deleteImage( $id, $size ) {
 		global $wgAvatarKey;
 
 		$backend = new SocialProfileFileBackend( 'avatars' );

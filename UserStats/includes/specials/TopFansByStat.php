@@ -38,7 +38,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 		// Load CSS
 		$out->addModuleStyles( 'ext.socialprofile.userstats.css' );
 
-		$dbr = wfGetDB( DB_REPLICA );
+		$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getMaintenanceConnectionRef( DB_REPLICA );
 
 		$statistic = trim( $request->getVal( 'stat', $par ) );
 		$column = "stats_{$statistic}";
@@ -107,7 +107,7 @@ class TopFansByStat extends UnlistedSpecialPage {
 				// different bug with a different extension).
 				// Also ignore flagged bot accounts, no point in showing those
 				// in the top lists.
-				$exists = $u->load();
+				$exists = $u->loadFromId();
 
 				if ( $exists && !$u->getBlock() && !$u->isBot() ) {
 					$user_list[] = [

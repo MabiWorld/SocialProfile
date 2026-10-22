@@ -47,7 +47,7 @@ class MigrateOldUserBoardUserColumnsToActor extends LoggedUpdateMaintenance {
 	 * @return bool True to log the update as done
 	 */
 	protected function doDBUpdates() {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		if ( !$dbw->fieldExists( 'user_board', 'ub_user_id', __METHOD__ ) ) {
 			return true;
@@ -78,7 +78,8 @@ class MigrateOldUserBoardUserColumnsToActor extends LoggedUpdateMaintenance {
 				],
 				[
 					'ub_user_id' => $row->ub_user_id
-				]
+				],
+				__METHOD__
 			);
 		}
 
@@ -106,7 +107,8 @@ class MigrateOldUserBoardUserColumnsToActor extends LoggedUpdateMaintenance {
 				],
 				[
 					'ub_user_id_from' => $row->ub_user_id_from
-				]
+				],
+				__METHOD__
 			);
 		}
 

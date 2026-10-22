@@ -3,6 +3,7 @@
 		"authors": [
 			"Amire80",
 			"DDPAT",
+			"Dirruw'o",
 			"Facenapalm",
 			"Ferrer",
 			"Ice bulldog",
@@ -14,7 +15,8 @@
 			"Rairakkumee",
 			"Rubin",
 			"Rubin16",
-			"Александр Сигачёв"
+			"Александр Сигачёв",
+			"Vonavy"
 		]
 	},
 	"editprofile": "Править профили других участников",
@@ -197,6 +199,7 @@
 	"user-board-login-message": "Вы должны [[Special:UserLogin|представиться системе]] чтобы отправлять сообщения другим участникам.",
 	"user-board-confirm-delete": "Вы уверены в том, что хотите удалить это сообщение?",
 	"removeavatar": "Удалить аватар",
+	"removeavatar-reason": "Причина:",
 	"removeavatar-remove-my-avatar": "Удалить мой аватар",
 	"removeavatar-remove-your-avatar": "Удалить ваш аватар",
 	"removeavatar-already-default": "Этот участник уже использует аватар по умолчанию, поэтому он не может быть удален.",
@@ -213,8 +216,8 @@
 	"profilelogpage": "Журнал редактирования личных страниц",
 	"profilelogpagetext": "Это журнал редактирования личных страниц",
 	"user-profile-edit-profile": "{{GENDER:|изменил|изменила|изменил_а}} профиль $1",
-	"avatarlogpage": "Журнал загрузки аватар",
-	"avatarlogpagetext": "Это журнал загрузок аватар участников",
+	"avatarlogpage": "Журнал аватаров",
+	"avatarlogpagetext": "Это журнал загрузок и удалений аватаров участников.",
 	"user-profile-picture-log-entry": "{{GENDER:|загрузил|загрузила|загрузил_а}} новую аватару",
 	"user-profile-picture-log-delete-entry": "{{GENDER:|удалил|удалила|удалил_а}} аватару $1",
 	"user-profile-remove-avatar": "удалить",

@@ -47,7 +47,7 @@ class MigrateOldUserRelationshipUserColumnsToActor extends LoggedUpdateMaintenan
 	 * @return bool True to log the update as done
 	 */
 	protected function doDBUpdates() {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		if ( $dbw->fieldExists( 'user_relationship', 'r_user_id', __METHOD__ ) ) {
 			$res = $dbw->select(
@@ -74,7 +74,8 @@ class MigrateOldUserRelationshipUserColumnsToActor extends LoggedUpdateMaintenan
 					],
 					[
 						'r_user_id' => $row->r_user_id
-					]
+					],
+					__METHOD__
 				);
 			}
 		}
@@ -104,7 +105,8 @@ class MigrateOldUserRelationshipUserColumnsToActor extends LoggedUpdateMaintenan
 					],
 					[
 						'r_user_id_relation' => $row->r_user_id_relation
-					]
+					],
+					__METHOD__
 				);
 			}
 		}

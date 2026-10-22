@@ -321,7 +321,7 @@ class UserProfilePage extends Article {
 				'user_name' => $this->profileOwner->getName()
 			] );
 
-			$dbr = wfGetDB( DB_REPLICA );
+			$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
 			$res = $dbr->select(
 				[ 'poll_question', 'page' ],
 				[ 'page_title', 'poll_date' ],
@@ -369,7 +369,7 @@ class UserProfilePage extends Article {
 				'user_name' => $this->profileOwner->getName()
 			] );
 
-			$dbr = wfGetDB( DB_REPLICA );
+			$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
 			$res = $dbr->select(
 				'quizgame_questions',
 				[ 'q_id', 'q_text', 'q_date' ],
@@ -422,7 +422,7 @@ class UserProfilePage extends Article {
 				'user_name' => $this->profileOwner->getName()
 			] );
 
-			$dbr = wfGetDB( DB_REPLICA );
+			$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
 			$res = $dbr->select(
 				'picturegame_images',
 				[ 'id', 'title', 'img1', 'img2', 'pg_date' ],
@@ -741,8 +741,15 @@ class UserProfilePage extends Article {
 		$personal_output .= $this->getProfileSection( wfMessage( 'user-personal-info-location' )->escaped(), $location, false );
 		$personal_output .= $this->getProfileSection( wfMessage( 'user-personal-info-hometown' )->escaped(), $hometown, false );
 
-		if ( in_array( 'up_birthday', $this->profile_visible_fields ) ) {
-			$personal_output .= $this->getProfileSection( wfMessage( 'user-personal-info-birthday' )->escaped(), $profile_data['birthday'], false );
+		if ( in_array( 'up_birthday', $this->profile_visible_fields ) && $profile_data['birthday'] !== '' ) {
+			// $profile_data['birthday'] contains the user-supplied birthdate either with or without
+			// the year, hence why its output can be either 8 or 4 characters long, and thus we need to
+			// pad it accordingly with a sufficient amount of zeros.
+			$personal_output .= $this->getProfileSection(
+				wfMessage( 'user-personal-info-birthday' )->escaped(),
+				$this->getContext()->getLanguage()->date( str_pad( $profile_data['birthday'], 14, '0' ) ),
+				false
+			);
 		}
 
 		if ( in_array( 'up_occupation', $this->profile_visible_fields ) ) {
@@ -1309,7 +1316,7 @@ class UserProfilePage extends Article {
 					{$user_name}
 				</a>";
 
-				if ( $x == count( $friends ) || $x != 1 && $x % $per_row == 0 ) {
+				if ( $x == count( $friends ) || ( $x != 1 && $x % $per_row == 0 ) ) {
 					$output .= '<div class="visualClear"></div>';
 				}
 
@@ -1605,7 +1612,7 @@ class UserProfilePage extends Article {
 				}
 				$output .= '<a href="' . htmlspecialchars( $gift_link->getFullURL( [ 'gift_id' => $gift['id'] ] ) ) . '" ' .
 					$class . " rel=\"nofollow\">{$icon}</a>";
-				if ( $x == count( $gifts ) || $x != 1 && $x % $per_row == 0 ) {
+				if ( $x == count( $gifts ) || ( $x != 1 && $x % $per_row == 0 ) ) {
 					$output .= '<div class="visualClear"></div>';
 				}
 
@@ -1706,7 +1713,7 @@ class UserProfilePage extends Article {
 					{$icon}
 				</a>";
 
-				if ( $x == count( $systemGifts ) || $x != 1 && $x % $per_row == 0 ) {
+				if ( $x == count( $systemGifts ) || ( $x != 1 && $x % $per_row == 0 ) ) {
 					$output .= '<div class="visualClear"></div>';
 				}
 				$x++;
@@ -1753,7 +1760,7 @@ class UserProfilePage extends Article {
 			$this->viewingUser->getName() == $this->profileOwner->getName() ||
 			$this->viewingUser->isAllowed( 'userboard-delete' )
 		) {
-			$total = $total + $stats_data['user_board_priv'];
+			$total += $stats_data['user_board_priv'];
 		}
 
 		$output .= '<div class="user-section-heading">
@@ -2015,7 +2022,19 @@ class UserProfilePage extends Article {
 					</div>";
 
 				if ( $user->isRegistered() ) {
-					if ( $check_user_fanbox ) {
+					// AAAAAAAAAAA I HATE THIS SO MUCH.
+					// Talk about [[uncyclopedia:Bat Fuck Insane]] code.
+					// When viewing someone *else*'s profile, we should be checking for $check_user_fanbox,
+					// but when viewing _your own_ profile, the condition should be negated.
+					// This is beyond senseless. Regardless, it's needed to display the correct message in each case.
+					$viewingYourOwnProfile = ( $this->profileOwner->getName() == $this->viewingUser->getName() );
+					if ( $viewingYourOwnProfile ) {
+						$condition = !$check_user_fanbox;
+					} else {
+						// Viewing someone else's profile, obviously...
+						$condition = $check_user_fanbox;
+					}
+					if ( $condition ) {
 						$output .= '<div class="fanbox-pop-up-box-profile" id="fanboxPopUpBox' . $fanbox['fantag_id'] . '">
 							<table cellpadding="0" cellspacing="0" align="center">
 								<tr>

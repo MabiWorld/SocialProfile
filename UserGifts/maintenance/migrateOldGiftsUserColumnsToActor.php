@@ -47,7 +47,7 @@ class MigrateOldGiftsUserColumnsToActor extends LoggedUpdateMaintenance {
 	 * @return bool True to log the update as done
 	 */
 	protected function doDBUpdates() {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		if ( !$dbw->fieldExists( 'gift', 'gift_creator_user_id', __METHOD__ ) ) {
 			// Old field's been dropped already so nothing to do here...
@@ -78,7 +78,8 @@ class MigrateOldGiftsUserColumnsToActor extends LoggedUpdateMaintenance {
 				],
 				[
 					'gift_creator_user_id' => $row->gift_creator_user_id
-				]
+				],
+				__METHOD__
 			);
 		}
 
