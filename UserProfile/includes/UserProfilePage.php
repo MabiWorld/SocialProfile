@@ -1108,7 +1108,7 @@ class UserProfilePage extends Article {
 				'<a href="' . htmlspecialchars( $upload_avatar->getFullURL() ) . '">' . wfMessage( 'user-upload-avatar' )->escaped() . '</a>';
 			$profileLinks['user-watchlist'] =
 				'<a href="' . htmlspecialchars( $watchlist->getFullURL() ) . '">' . wfMessage( 'user-watchlist' )->escaped() . '</a>';
-		} elseif ( $this->viewingUser->isLoggedIn() ) {
+		} elseif ( $this->viewingUser->isRegistered() ) {
 			if ( $this->viewingUser->isAllowed( 'editothersprofiles' ) ) {
 				$profileLinks['user-edit-profile'] =
 					'<a href="' . htmlspecialchars( $update_profile->getFullURL( 'wpUser=' . $user_safe ) ) . '">' . wfMessage( 'user-edit-this' )->escaped() . '</a>';

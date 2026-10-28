@@ -82,6 +82,8 @@
 
 /* Profile Top */
 #profile-top {
+	display: flex;
+	align-items: end;
 	border-bottom: 1px solid #d4dfd7;
 	padding: 10px 0;
 	margin: 0 0 10px 0;
@@ -139,7 +141,8 @@
 }
 
 #profile-image {
-	float: left;
+	display: inline-block;
+	flex: 0;
 	margin: 0 8px 0 0;
 	position: relative;
 }
@@ -158,7 +161,8 @@
 }
 
 #profile-right {
-	float: left;
+	display: inline-block;
+	flex: 1;
 	position: relative;
 }
 
